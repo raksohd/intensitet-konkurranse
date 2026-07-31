@@ -1,0 +1,2 @@
+export const COMPETITION_START = '2026-08-01'
+export const COMPETITION_END = '2026-12-31'
