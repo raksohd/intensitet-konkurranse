@@ -56,6 +56,15 @@ export default function LeaderboardPage() {
     load()
   }, [])
  
+  const lastRegByUserId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const r of regs) {
+      const current = map.get(r.user_id)
+      if (!current || r.date > current) map.set(r.user_id, r.date)
+    }
+    return map
+  }, [regs])
+ 
   if (loading) return <div className="text-center py-20 text-gray-500">Laster...</div>
  
   let fromISO: string | undefined
@@ -79,17 +88,24 @@ export default function LeaderboardPage() {
   }
  
   const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
-  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '')
+ 
+  const badgeStyle = (rank: number) => {
+    if (rank === 1) return 'bg-yellow-100 text-yellow-800'
+    if (rank === 2) return 'bg-gray-200 text-gray-700'
+    if (rank === 3) return 'bg-orange-100 text-orange-800'
+    return 'bg-indigo-50 text-indigo-700'
+  }
+  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null)
  
   return (
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      {/* Mobil: dropdown for å velge visning */}
+      {/* Dropdown - vises på mobil OG når telefonen holdes liggende */}
       <select
         value={tab}
         onChange={(e) => setTab(e.target.value as Tab)}
-        className="sm:hidden w-full mb-4 border rounded-lg px-3 py-2 bg-white text-sm font-medium"
+        className="lg:hidden w-full mb-4 border rounded-lg px-3 py-2 bg-white text-sm font-medium"
       >
         <option value="total">Totalt</option>
         <option value="month">Måned</option>
@@ -97,8 +113,8 @@ export default function LeaderboardPage() {
         <option value="day">Dag</option>
       </select>
  
-      {/* Desktop: knapper */}
-      <div className="hidden sm:flex gap-2 mb-4">
+      {/* Knapper - kun på ordentlig store skjermer (PC) */}
+      <div className="hidden lg:flex gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
@@ -131,7 +147,7 @@ export default function LeaderboardPage() {
         <div className="mb-3">
           <input type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
             onChange={(e) => setDayISO(e.target.value)}
-            className="border rounded-lg px-3 py-2 w-full sm:w-auto" />
+            className="border rounded-lg px-3 py-2 w-full lg:w-auto" />
         </div>
       )}
       {tab === 'total' && (
@@ -140,47 +156,58 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Mobilvisning: tydelig rangering + navn + poeng */}
-      <div className="sm:hidden space-y-2">
-        {rows.map((r) => (
-          <div key={r.userId}
-            className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
-              r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
-            }`}>
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-bold text-sm text-gray-700">
-              {medal(r.rank) || r.rank}
+      {/* Kortvisning - brukes på mobil (stående OG liggende) samt nettbrett */}
+      <div className="lg:hidden space-y-2">
+        {rows.map((r) => {
+          const lastDate = lastRegByUserId.get(r.userId)
+          return (
+            <div key={r.userId}
+              className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
+                r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
+              }`}>
+              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${badgeStyle(r.rank)}`}>
+                {medal(r.rank) || r.rank}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
+                  {r.name}{r.userId === meId ? ' (deg)' : ''}
+                </p>
+                {lastDate && (
+                  <p className="text-xs text-gray-400">Sist: {formatNorwegian(lastDate)}</p>
+                )}
+              </div>
+              <div className="flex-shrink-0 whitespace-nowrap">
+                <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
+                <span className="text-xs text-gray-400 ml-1">min</span>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
-                {r.name}{r.userId === meId ? ' (deg)' : ''}
-              </p>
-            </div>
-           <div className="flex-shrink-0 whitespace-nowrap">
-            <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
-            <span className="text-xs text-gray-400 ml-1">min</span>
-          </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
  
-      {/* Desktop-visning: tabell */}
-      <div className="hidden sm:block bg-white rounded-2xl shadow overflow-hidden">
+      {/* Tabellvisning - kun på ordentlig store skjermer (PC) */}
+      <div className="hidden lg:block bg-white rounded-2xl shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
               <th className="px-4 py-2">#</th>
               <th className="px-4 py-2">Navn</th>
+              <th className="px-4 py-2">Sist registrert</th>
               <th className="px-4 py-2 text-right">Minutter</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.userId} className={`border-t ${r.userId === meId ? 'bg-indigo-50 font-semibold' : ''}`}>
-                <td className="px-4 py-2">{medal(r.rank)} {r.rank}</td>
-                <td className="px-4 py-2">{r.name}{r.userId === meId ? ' (deg)' : ''}</td>
-                <td className="px-4 py-2 text-right">{r.minutes}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const lastDate = lastRegByUserId.get(r.userId)
+              return (
+                <tr key={r.userId} className={`border-t ${r.userId === meId ? 'bg-indigo-50 font-semibold' : ''}`}>
+                  <td className="px-4 py-2">{medal(r.rank) || r.rank}</td>
+                  <td className="px-4 py-2">{r.name}{r.userId === meId ? ' (deg)' : ''}</td>
+                  <td className="px-4 py-2 text-gray-500">{lastDate ? formatNorwegian(lastDate) : '-'}</td>
+                  <td className="px-4 py-2 text-right">{r.minutes}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
