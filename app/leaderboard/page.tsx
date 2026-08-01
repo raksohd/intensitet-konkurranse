@@ -140,22 +140,25 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Mobilvisning: kompakte kort, navn og poeng alltid synlig */}
+      {/* Mobilvisning: tydelig rangering + navn + poeng */}
       <div className="sm:hidden space-y-2">
         {rows.map((r) => (
           <div key={r.userId}
-            className={`bg-white rounded-xl shadow p-3 flex items-center justify-between gap-3 ${
+            className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
               r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
             }`}>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-lg w-8 text-center flex-shrink-0">{medal(r.rank) || `#${r.rank}`}</span>
-              <span className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
-                {r.name}{r.userId === meId ? ' (deg)' : ''}
-              </span>
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-bold text-sm text-gray-700">
+              {medal(r.rank) || r.rank}
             </div>
-            <span className="flex-shrink-0 text-lg font-bold text-indigo-600">
-              {r.minutes}<span className="text-xs font-normal text-gray-400 ml-1">min</span>
-            </span>
+            <div className="flex-1 min-w-0">
+              <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
+                {r.name}{r.userId === meId ? ' (deg)' : ''}
+              </p>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
+              <span className="text-xs text-gray-400 ml-1">min</span>
+            </div>
           </div>
         ))}
       </div>
