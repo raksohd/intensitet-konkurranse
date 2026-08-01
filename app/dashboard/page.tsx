@@ -111,11 +111,11 @@ export default function DashboardPage() {
         </div>
       )}
  
-     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-  {statCards.map((card, i) => (
-    <StatCard key={i} label={card.label} value={card.value} />
-  ))}
-</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {statCards.map((card, i) => (
+          <StatCard key={i} label={card.label} value={card.value} />
+        ))}
+      </div>
  
       {status === 'active' && (
         <div className="bg-white rounded-2xl shadow p-5">
@@ -174,7 +174,7 @@ export default function DashboardPage() {
  
 function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl shadow p-4 h-full">
+    <div className="bg-white rounded-2xl shadow p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="text-lg font-bold mt-1">{value}</p>
     </div>
