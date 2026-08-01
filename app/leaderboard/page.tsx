@@ -90,10 +90,10 @@ export default function LeaderboardPage() {
   const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
  
   const badgeStyle = (rank: number) => {
-    if (rank === 1) return 'bg-yellow-100 text-yellow-800'
-    if (rank === 2) return 'bg-gray-200 text-gray-700'
-    if (rank === 3) return 'bg-orange-100 text-orange-800'
-    return 'bg-indigo-50 text-indigo-700'
+    if (rank === 1) return 'bg-yellow-300 text-yellow-900'
+    if (rank === 2) return 'bg-gray-300 text-gray-800'
+    if (rank === 3) return 'bg-orange-300 text-orange-900'
+    return 'bg-indigo-100 text-indigo-700'
   }
   const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null)
  
@@ -101,7 +101,6 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      {/* Dropdown - vises på mobil OG når telefonen holdes liggende */}
       <select
         value={tab}
         onChange={(e) => setTab(e.target.value as Tab)}
@@ -113,7 +112,6 @@ export default function LeaderboardPage() {
         <option value="day">Dag</option>
       </select>
  
-      {/* Knapper - kun på ordentlig store skjermer (PC) */}
       <div className="hidden lg:flex gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -156,36 +154,44 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Kortvisning - brukes på mobil (stående OG liggende) samt nettbrett */}
-      <div className="lg:hidden space-y-2">
-        {rows.map((r) => {
-          const lastDate = lastRegByUserId.get(r.userId)
-          return (
-            <div key={r.userId}
-              className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
-                r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
-              }`}>
-              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${badgeStyle(r.rank)}`}>
-                {medal(r.rank) || r.rank}
+      {/* Kortvisning med header - brukes på mobil og nettbrett (portrett OG liggende) */}
+      <div className="lg:hidden">
+        <div className="flex items-center gap-3 px-3 pb-2">
+          <div className="w-11 flex-shrink-0"></div>
+          <div className="flex-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">Navn</div>
+          <div className="flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wide">Minutter</div>
+        </div>
+        <div className="space-y-2">
+          {rows.map((r) => {
+            const lastDate = lastRegByUserId.get(r.userId)
+            return (
+              <div key={r.userId}
+                className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
+                  r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
+                }`}>
+                <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg ${badgeStyle(r.rank)}`}>
+                  {medal(r.rank) || r.rank}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
+                    {r.name}{r.userId === meId ? ' (deg)' : ''}
+                  </p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-lg font-bold text-indigo-600 leading-tight">{r.minutes}</p>
+                  {lastDate && (
+                    <p className="text-[11px] text-gray-400 leading-tight whitespace-nowrap">
+                      Sist: {formatNorwegian(lastDate)}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
-                  {r.name}{r.userId === meId ? ' (deg)' : ''}
-                </p>
-                {lastDate && (
-                  <p className="text-xs text-gray-400">Sist: {formatNorwegian(lastDate)}</p>
-                )}
-              </div>
-              <div className="flex-shrink-0 whitespace-nowrap">
-                <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
-                <span className="text-xs text-gray-400 ml-1">min</span>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
  
-      {/* Tabellvisning - kun på ordentlig store skjermer (PC) */}
+      {/* Tabellvisning - kun store skjermer (PC) */}
       <div className="hidden lg:block bg-white rounded-2xl shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
