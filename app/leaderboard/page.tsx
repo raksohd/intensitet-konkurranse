@@ -101,18 +101,8 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      <select
-        value={tab}
-        onChange={(e) => setTab(e.target.value as Tab)}
-        className="lg:hidden w-full mb-4 border rounded-lg px-3 py-2 bg-white text-sm font-medium"
-      >
-        <option value="total">Totalt</option>
-        <option value="month">Måned</option>
-        <option value="week">Uke</option>
-        <option value="day">Dag</option>
-      </select>
- 
-      <div className="hidden lg:flex gap-2 mb-4">
+      {/* Tab-valg: enkle knapper som bryter til ny linje ved behov - fungerer likt på alle skjermstørrelser */}
+      <div className="flex flex-wrap gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
@@ -145,7 +135,7 @@ export default function LeaderboardPage() {
         <div className="mb-3">
           <input type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
             onChange={(e) => setDayISO(e.target.value)}
-            className="border rounded-lg px-3 py-2 w-full lg:w-auto" />
+            className="border rounded-lg px-3 py-2" />
         </div>
       )}
       {tab === 'total' && (
@@ -154,68 +144,32 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Kortvisning med header - brukes på mobil og nettbrett (portrett OG liggende) */}
-      <div className="lg:hidden">
-        <div className="flex items-center gap-3 px-3 pb-2">
-          <div className="w-11 flex-shrink-0"></div>
-          <div className="flex-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">Navn</div>
-          <div className="flex-shrink-0 text-xs font-semibold text-gray-400 uppercase tracking-wide">Minutter</div>
-        </div>
-        <div className="space-y-2">
-          {rows.map((r) => {
-            const lastDate = lastRegByUserId.get(r.userId)
-            return (
-              <div key={r.userId}
-                className={`bg-white rounded-xl shadow p-3 flex items-center gap-3 ${
-                  r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
-                }`}>
-                <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg ${badgeStyle(r.rank)}`}>
-                  {medal(r.rank) || r.rank}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
-                    {r.name}{r.userId === meId ? ' (deg)' : ''}
-                  </p>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <p className="text-lg font-bold text-indigo-600 leading-tight">{r.minutes}</p>
-                  {lastDate && (
-                    <p className="text-[11px] text-gray-400 leading-tight whitespace-nowrap">
-                      Sist: {formatNorwegian(lastDate)}
-                    </p>
-                  )}
-                </div>
+      {/* Ett samlet design - identisk på mobil (stående/liggende), nettbrett og PC */}
+      <div className="space-y-2">
+        {rows.map((r) => {
+          const lastDate = lastRegByUserId.get(r.userId)
+          return (
+            <div key={r.userId}
+              className={`bg-white rounded-xl shadow px-4 py-3 flex items-center gap-3 ${
+                r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
+              }`}>
+              <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg ${badgeStyle(r.rank)}`}>
+                {medal(r.rank) || r.rank}
               </div>
-            )
-          })}
-        </div>
-      </div>
- 
-      {/* Tabellvisning - kun store skjermer (PC) */}
-      <div className="hidden lg:block bg-white rounded-2xl shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-left">
-            <tr>
-              <th className="px-4 py-2">#</th>
-              <th className="px-4 py-2">Navn</th>
-              <th className="px-4 py-2">Sist registrert</th>
-              <th className="px-4 py-2 text-right">Minutter</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const lastDate = lastRegByUserId.get(r.userId)
-              return (
-                <tr key={r.userId} className={`border-t ${r.userId === meId ? 'bg-indigo-50 font-semibold' : ''}`}>
-                  <td className="px-4 py-2">{medal(r.rank) || r.rank}</td>
-                  <td className="px-4 py-2">{r.name}{r.userId === meId ? ' (deg)' : ''}</td>
-                  <td className="px-4 py-2 text-gray-500">{lastDate ? formatNorwegian(lastDate) : '-'}</td>
-                  <td className="px-4 py-2 text-right">{r.minutes}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              <div className="flex-1 min-w-0">
+                <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
+                  {r.name}{r.userId === meId ? ' (deg)' : ''}
+                </p>
+              </div>
+              <div className="flex-shrink-0 text-right min-w-[72px]">
+                <p className="text-xl font-bold text-indigo-600 leading-tight">{r.minutes}</p>
+                <p className="text-[11px] text-gray-400 leading-tight whitespace-nowrap">
+                  {lastDate ? `Sist: ${formatNorwegian(lastDate)}` : 'Ingen data'}
+                </p>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
