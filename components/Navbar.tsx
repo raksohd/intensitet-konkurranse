@@ -34,6 +34,7 @@ export default function Navbar() {
     { href: '/register', label: 'Registrer' },
     { href: '/history', label: 'Historikk' },
     { href: '/leaderboard', label: 'Leaderboard' },
+    { href: '/statistikk', label: 'Statistikk' },
   ]
   if (isAdmin) links.push({ href: '/admin', label: 'Admin' })
   links.push({ href: '/account', label: 'Min konto' })
