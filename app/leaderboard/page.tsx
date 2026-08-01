@@ -85,7 +85,20 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      <div className="flex gap-2 mb-4 overflow-x-auto">
+      {/* Mobil: dropdown for å velge visning */}
+      <select
+        value={tab}
+        onChange={(e) => setTab(e.target.value as Tab)}
+        className="sm:hidden w-full mb-4 border rounded-lg px-3 py-2 bg-white text-sm font-medium"
+      >
+        <option value="total">Totalt</option>
+        <option value="month">Måned</option>
+        <option value="week">Uke</option>
+        <option value="day">Dag</option>
+      </select>
+ 
+      {/* Desktop: knapper */}
+      <div className="hidden sm:flex gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
@@ -118,7 +131,7 @@ export default function LeaderboardPage() {
         <div className="mb-3">
           <input type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
             onChange={(e) => setDayISO(e.target.value)}
-            className="border rounded-lg px-3 py-2" />
+            className="border rounded-lg px-3 py-2 w-full sm:w-auto" />
         </div>
       )}
       {tab === 'total' && (
@@ -127,20 +140,22 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Mobilvisning: kort-liste */}
+      {/* Mobilvisning: kompakte kort, navn og poeng alltid synlig */}
       <div className="sm:hidden space-y-2">
         {rows.map((r) => (
           <div key={r.userId}
-            className={`bg-white rounded-xl shadow p-4 flex items-center justify-between ${
-              r.userId === meId ? 'ring-2 ring-indigo-400' : ''
+            className={`bg-white rounded-xl shadow p-3 flex items-center justify-between gap-3 ${
+              r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
             }`}>
-            <div className="flex items-center gap-3">
-              <span className="text-lg font-bold text-gray-400 w-10">{medal(r.rank) || `#${r.rank}`}</span>
-              <span className={`font-medium ${r.userId === meId ? 'text-indigo-600' : ''}`}>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-lg w-8 text-center flex-shrink-0">{medal(r.rank) || `#${r.rank}`}</span>
+              <span className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
                 {r.name}{r.userId === meId ? ' (deg)' : ''}
               </span>
             </div>
-            <span className="font-bold">{r.minutes} min</span>
+            <span className="flex-shrink-0 text-lg font-bold text-indigo-600">
+              {r.minutes}<span className="text-xs font-normal text-gray-400 ml-1">min</span>
+            </span>
           </div>
         ))}
       </div>
