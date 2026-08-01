@@ -6,7 +6,7 @@ import { Profile, Registration } from '@/lib/types'
 import { buildLeaderboard } from '@/lib/leaderboard'
 import {
   todayISO, formatNorwegian, computeMissingDates, computeStreak, getStatus,
-  computeAverageLastNDays, computeAverageLastNWeeks,
+  computeAverageLastNDays,
 } from '@/lib/dates'
 import { COMPETITION_START, COMPETITION_END } from '@/lib/constants'
  
@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const missingDates = computeMissingDates(myRegisteredDates)
   const streak = computeStreak(myRegisteredDates)
   const avg7 = computeAverageLastNDays(myRegs, 7)
-  const avg4w = computeAverageLastNWeeks(myRegs, 4)
+  const avg28 = computeAverageLastNDays(myRegs, 28)
  
   const leaderboard = buildLeaderboard(profiles, allRegs)
   const myRow = leaderboard.find((r) => r.userId === me.id)
@@ -81,6 +81,18 @@ export default function DashboardPage() {
     }
   }
  
+  const statCards = [
+    { label: 'Mine minutter totalt', value: myTotal },
+    { label: 'Min plassering', value: `#${myRank} av ${leaderboard.length}` },
+    {
+      label: gapToNext !== null ? `Til ${nextName}` : 'Plassering',
+      value: gapToNext !== null ? `${gapToNext} min` : (myRow?.rank === 1 ? '🏆 Du leder!' : '-'),
+    },
+    { label: 'Streak', value: `${streak} dager` },
+    { label: 'Snitt/dag (7 dager)', value: `${avg7} min` },
+    { label: 'Snitt/dag (4 uker)', value: `${avg28} min` },
+  ]
+ 
   return (
     <div className="space-y-6">
       <div>
@@ -99,16 +111,13 @@ export default function DashboardPage() {
         </div>
       )}
  
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Mine minutter totalt" value={myTotal} />
-        <StatCard label="Min plassering" value={`#${myRank} av ${leaderboard.length}`} />
-        <StatCard
-          label={gapToNext !== null ? `Til ${nextName}` : 'Plassering'}
-          value={gapToNext !== null ? `${gapToNext} min` : (myRow?.rank === 1 ? '🏆 Du leder!' : '-')}
-        />
-        <StatCard label="Streak" value={`${streak} dager`} />
-        <StatCard label="Snitt/dag (7 dager)" value={`${avg7} min`} />
-        <StatCard label="Snitt/uke (4 uker)" value={`${avg4w} min`} />
+      {/* Statistikk-bokser: garantert 2 per rad på mobil, 3 per rad fra tablet/PC */}
+      <div className="flex flex-wrap gap-3">
+        {statCards.map((card, i) => (
+          <div key={i} className="w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.5rem)]">
+            <StatCard label={card.label} value={card.value} />
+          </div>
+        ))}
       </div>
  
       {status === 'active' && (
@@ -168,7 +177,7 @@ export default function DashboardPage() {
  
 function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl shadow p-4">
+    <div className="bg-white rounded-2xl shadow p-4 h-full">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="text-lg font-bold mt-1">{value}</p>
     </div>
