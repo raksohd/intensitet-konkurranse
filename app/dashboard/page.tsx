@@ -111,14 +111,11 @@ export default function DashboardPage() {
         </div>
       )}
  
-      {/* Statistikk-bokser: garantert 2 per rad på mobil, 3 per rad fra tablet/PC */}
-      <div className="flex flex-wrap gap-3">
-        {statCards.map((card, i) => (
-          <div key={i} className="w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.5rem)]">
-            <StatCard label={card.label} value={card.value} />
-          </div>
-        ))}
-      </div>
+     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+  {statCards.map((card, i) => (
+    <StatCard key={i} label={card.label} value={card.value} />
+  ))}
+</div>
  
       {status === 'active' && (
         <div className="bg-white rounded-2xl shadow p-5">
