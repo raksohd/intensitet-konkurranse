@@ -1,6 +1,6 @@
 import {
   addDays, eachDayOfInterval, endOfWeek, format, isAfter, isBefore,
-  max as dfMax, min as dfMin, parseISO, startOfWeek,
+  max as dfMax, min as dfMin, parseISO, startOfDay, startOfWeek,
 } from 'date-fns'
 import { COMPETITION_START, COMPETITION_END } from './constants'
  
@@ -26,7 +26,6 @@ export function getWeekRange(date: Date) {
   }
 }
  
-// Dager før i dag (og innenfor konkurranseperioden) uten registrering.
 export function computeMissingDates(registeredDates: Set<string>): string[] {
   const today = new Date()
   const upperBoundary = dfMin([addDays(today, -1), competitionEnd])
@@ -35,7 +34,6 @@ export function computeMissingDates(registeredDates: Set<string>): string[] {
   return days.map(toISO).filter((d) => !registeredDates.has(d)).reverse()
 }
  
-// Antall dager på rad med registrering, regnet bakover fra i dag/i går.
 export function computeStreak(registeredDates: Set<string>): number {
   const today = new Date()
   let cursor = registeredDates.has(toISO(today)) ? today : addDays(today, -1)
@@ -53,13 +51,12 @@ function daysBetweenInclusive(a: Date, b: Date): number {
 }
  
 // Gjennomsnitt minutter/dag de siste N dagene (innenfor konkurranseperioden).
-// Brukes for både "siste 7 dager" og "siste 4 uker" (n=28) - alltid snitt PER DAG,
-// for å unngå misvisende høye tall tidlig i konkurransen.
+// Regner alltid fra midnatt for å unngå avrundingsfeil pga. klokkeslett.
 export function computeAverageLastNDays(
   regs: { date: string; minutes: number }[],
   n: number
 ): number {
-  const today = dfMin([new Date(), competitionEnd])
+  const today = startOfDay(dfMin([new Date(), competitionEnd]))
   const windowStart = dfMax([competitionStart, addDays(today, -(n - 1))])
   const windowStartISO = toISO(windowStart)
   const todayISOStr = toISO(today)
