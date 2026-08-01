@@ -50,22 +50,30 @@ function daysBetweenInclusive(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000) + 1
 }
  
-// Gjennomsnitt minutter/dag de siste N dagene (innenfor konkurranseperioden).
-// Regner alltid fra midnatt for å unngå avrundingsfeil pga. klokkeslett.
+// Gjennomsnitt minutter/dag de siste N dagene.
+// Teller "i dag" med i beregningen KUN hvis brukeren allerede har registrert i dag.
+// Hvis ikke, brukes i går som siste dag i vinduet - slik at man ikke får
+// et kunstig lavt snitt bare fordi man ikke har rukket å registrere ennå i dag.
 export function computeAverageLastNDays(
   regs: { date: string; minutes: number }[],
   n: number
 ): number {
-  const today = startOfDay(dfMin([new Date(), competitionEnd]))
-  const windowStart = dfMax([competitionStart, addDays(today, -(n - 1))])
+  const registeredDates = new Set(regs.map((r) => r.date))
+  const now = startOfDay(new Date())
+  const hasLoggedToday = registeredDates.has(toISO(now))
+  const referenceDay = dfMin([hasLoggedToday ? now : addDays(now, -1), competitionEnd])
+ 
+  if (isBefore(referenceDay, competitionStart)) return 0
+ 
+  const windowStart = dfMax([competitionStart, addDays(referenceDay, -(n - 1))])
   const windowStartISO = toISO(windowStart)
-  const todayISOStr = toISO(today)
+  const referenceISO = toISO(referenceDay)
  
   const sum = regs
-    .filter((r) => r.date >= windowStartISO && r.date <= todayISOStr)
+    .filter((r) => r.date >= windowStartISO && r.date <= referenceISO)
     .reduce((acc, r) => acc + r.minutes, 0)
  
-  const elapsedDays = daysBetweenInclusive(windowStart, today)
+  const elapsedDays = daysBetweenInclusive(windowStart, referenceDay)
   const denom = Math.max(1, Math.min(n, elapsedDays))
   return Math.round((sum / denom) * 10) / 10
 }
