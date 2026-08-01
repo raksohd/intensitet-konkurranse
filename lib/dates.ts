@@ -53,6 +53,8 @@ function daysBetweenInclusive(a: Date, b: Date): number {
 }
  
 // Gjennomsnitt minutter/dag de siste N dagene (innenfor konkurranseperioden).
+// Brukes for både "siste 7 dager" og "siste 4 uker" (n=28) - alltid snitt PER DAG,
+// for å unngå misvisende høye tall tidlig i konkurransen.
 export function computeAverageLastNDays(
   regs: { date: string; minutes: number }[],
   n: number
@@ -69,15 +71,6 @@ export function computeAverageLastNDays(
   const elapsedDays = daysBetweenInclusive(windowStart, today)
   const denom = Math.max(1, Math.min(n, elapsedDays))
   return Math.round((sum / denom) * 10) / 10
-}
- 
-// Gjennomsnitt minutter/uke de siste N ukene.
-export function computeAverageLastNWeeks(
-  regs: { date: string; minutes: number }[],
-  weeks: number
-): number {
-  const perDay = computeAverageLastNDays(regs, weeks * 7)
-  return Math.round(perDay * 7 * 10) / 10
 }
  
 export { dfMax, dfMin }
