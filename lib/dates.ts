@@ -48,4 +48,36 @@ export function computeStreak(registeredDates: Set<string>): number {
   return streak
 }
  
+function daysBetweenInclusive(a: Date, b: Date): number {
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1
+}
+ 
+// Gjennomsnitt minutter/dag de siste N dagene (innenfor konkurranseperioden).
+export function computeAverageLastNDays(
+  regs: { date: string; minutes: number }[],
+  n: number
+): number {
+  const today = dfMin([new Date(), competitionEnd])
+  const windowStart = dfMax([competitionStart, addDays(today, -(n - 1))])
+  const windowStartISO = toISO(windowStart)
+  const todayISOStr = toISO(today)
+ 
+  const sum = regs
+    .filter((r) => r.date >= windowStartISO && r.date <= todayISOStr)
+    .reduce((acc, r) => acc + r.minutes, 0)
+ 
+  const elapsedDays = daysBetweenInclusive(windowStart, today)
+  const denom = Math.max(1, Math.min(n, elapsedDays))
+  return Math.round((sum / denom) * 10) / 10
+}
+ 
+// Gjennomsnitt minutter/uke de siste N ukene.
+export function computeAverageLastNWeeks(
+  regs: { date: string; minutes: number }[],
+  weeks: number
+): number {
+  const perDay = computeAverageLastNDays(regs, weeks * 7)
+  return Math.round(perDay * 7 * 10) / 10
+}
+ 
 export { dfMax, dfMin }
