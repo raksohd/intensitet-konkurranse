@@ -50,7 +50,7 @@ export default function StatistikkPage() {
       const sum = regs
         .filter((r) => r.date >= toISO(wStart) && r.date <= toISO(wEnd))
         .reduce((acc, r) => acc + r.minutes, 0)
-      return { uke: format(wStart, 'dd.MM'), minutter: sum }
+      return { uke: `${format(wStart, 'dd.MM.yy')}-${format(wEnd, 'dd.MM.yy')}`, minutter: sum }
     })
   }, [regs])
  
@@ -92,7 +92,7 @@ export default function StatistikkPage() {
           <ResponsiveContainer>
             <BarChart data={weeklyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="uke" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="uke" tick={{ fontSize: 9 }} angle={-35} textAnchor="end" height={50} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Bar dataKey="minutter" fill="#4f46e5" radius={[4, 4, 0, 0]} />
