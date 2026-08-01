@@ -155,10 +155,10 @@ export default function LeaderboardPage() {
                 {r.name}{r.userId === meId ? ' (deg)' : ''}
               </p>
             </div>
-            <div className="flex-shrink-0 text-right">
-              <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
-              <span className="text-xs text-gray-400 ml-1">min</span>
-            </div>
+           <div className="flex-shrink-0 whitespace-nowrap">
+            <span className="text-lg font-bold text-indigo-600">{r.minutes}</span>
+            <span className="text-xs text-gray-400 ml-1">min</span>
+          </div>
           </div>
         ))}
       </div>
