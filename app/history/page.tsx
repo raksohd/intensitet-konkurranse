@@ -40,30 +40,54 @@ export default function HistoryPage() {
           <Link href="/register" className="text-indigo-600 hover:underline">Registrer din første økt</Link>
         </p>
       ) : (
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
-              <tr>
-                <th className="px-4 py-2 cursor-pointer" onClick={() => setSortDesc(!sortDesc)}>
-                  Dato {sortDesc ? '↓' : '↑'}
-                </th>
-                <th className="px-4 py-2">Minutter</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="px-4 py-2">{formatNorwegian(r.date)}</td>
-                  <td className="px-4 py-2">{r.minutes} min</td>
-                  <td className="px-4 py-2 text-right">
-                    <Link href={`/register?date=${r.date}`} className="text-indigo-600 hover:underline">Rediger</Link>
-                  </td>
+        <>
+          <button
+            onClick={() => setSortDesc(!sortDesc)}
+            className="mb-3 text-sm text-gray-500 hover:text-gray-700"
+          >
+            Sorter etter dato {sortDesc ? '↓ (nyest først)' : '↑ (eldst først)'}
+          </button>
+ 
+          {/* Mobilvisning: kort-liste */}
+          <div className="sm:hidden space-y-2">
+            {sorted.map((r) => (
+              <div key={r.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{formatNorwegian(r.date)}</p>
+                  <p className="text-sm text-gray-500">{r.minutes} minutter</p>
+                </div>
+                <Link href={`/register?date=${r.date}`}
+                  className="text-indigo-600 text-sm font-medium bg-indigo-50 px-3 py-1.5 rounded-lg">
+                  Rediger
+                </Link>
+              </div>
+            ))}
+          </div>
+ 
+          {/* Desktop-visning: tabell */}
+          <div className="hidden sm:block bg-white rounded-2xl shadow overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-left">
+                <tr>
+                  <th className="px-4 py-2">Dato</th>
+                  <th className="px-4 py-2">Minutter</th>
+                  <th className="px-4 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="px-4 py-2">{formatNorwegian(r.date)}</td>
+                    <td className="px-4 py-2">{r.minutes} min</td>
+                    <td className="px-4 py-2 text-right">
+                      <Link href={`/register?date=${r.date}`} className="text-indigo-600 hover:underline">Rediger</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )
