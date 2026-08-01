@@ -127,7 +127,26 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      <div className="bg-white rounded-2xl shadow overflow-hidden">
+      {/* Mobilvisning: kort-liste */}
+      <div className="sm:hidden space-y-2">
+        {rows.map((r) => (
+          <div key={r.userId}
+            className={`bg-white rounded-xl shadow p-4 flex items-center justify-between ${
+              r.userId === meId ? 'ring-2 ring-indigo-400' : ''
+            }`}>
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-bold text-gray-400 w-10">{medal(r.rank) || `#${r.rank}`}</span>
+              <span className={`font-medium ${r.userId === meId ? 'text-indigo-600' : ''}`}>
+                {r.name}{r.userId === meId ? ' (deg)' : ''}
+              </span>
+            </div>
+            <span className="font-bold">{r.minutes} min</span>
+          </div>
+        ))}
+      </div>
+ 
+      {/* Desktop-visning: tabell */}
+      <div className="hidden sm:block bg-white rounded-2xl shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
