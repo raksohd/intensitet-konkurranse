@@ -88,14 +88,7 @@ export default function LeaderboardPage() {
   }
  
   const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
- 
-  const badgeStyle = (rank: number) => {
-    if (rank === 1) return { background: '#fde047', color: '#78350f' }
-    if (rank === 2) return { background: '#d1d5db', color: '#1f2937' }
-    if (rank === 3) return { background: '#fdba74', color: '#7c2d12' }
-    return { background: '#e0e7ff', color: '#3730a3' }
-  }
-  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null)
+  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : String(rank))
  
   return (
     <div>
@@ -104,11 +97,9 @@ export default function LeaderboardPage() {
       <div className="flex flex-wrap gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            style={{
-              background: tab === t ? '#4f46e5' : '#ffffff',
-              color: tab === t ? '#ffffff' : '#4b5563',
-            }}
-            className="px-3 py-1.5 rounded-full text-sm whitespace-nowrap shadow">
+            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+              tab === t ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 shadow'
+            }`}>
             {t === 'total' ? 'Totalt' : t === 'month' ? 'Måned' : t === 'week' ? 'Uke' : 'Dag'}
           </button>
         ))}
@@ -145,52 +136,41 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {rows.map((r) => {
-          const lastDate = lastRegByUserId.get(r.userId)
-          const isMe = r.userId === meId
-          return (
-            <div key={r.userId}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '48px 1fr 80px',
-                alignItems: 'center',
-                gap: '12px',
-                background: isMe ? '#eef2ff' : '#ffffff',
-                border: isMe ? '2px solid #818cf8' : '2px solid transparent',
-                borderRadius: '12px',
-                padding: '12px 16px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              }}
-            >
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '9999px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 'bold', fontSize: '18px', ...badgeStyle(r.rank),
-              }}>
-                {medal(r.rank) || r.rank}
-              </div>
- 
-              <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                <p style={{
-                  fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  color: isMe ? '#4338ca' : '#1f2937',
-                }}>
-                  {r.name}{isMe ? ' (deg)' : ''}
-                </p>
-              </div>
- 
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#4f46e5', lineHeight: 1.1 }}>
-                  {r.minutes}
-                </p>
-                <p style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-                  {lastDate ? formatNorwegian(lastDate) : '-'}
-                </p>
-              </div>
-            </div>
-          )
-        })}
+      <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col style={{ width: '34px' }} />
+            <col />
+            <col style={{ width: '52px' }} />
+            <col style={{ width: '58px' }} />
+          </colgroup>
+          <thead className="bg-gray-50 text-gray-500">
+            <tr>
+              <th className="px-1 py-2 text-[11px] text-left font-semibold">#</th>
+              <th className="px-1 py-2 text-[11px] text-left font-semibold">Navn</th>
+              <th className="px-1 py-2 text-[11px] text-right font-semibold">Min</th>
+              <th className="px-1 py-2 text-[11px] text-right font-semibold">Sist</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const lastDate = lastRegByUserId.get(r.userId)
+              const isMe = r.userId === meId
+              return (
+                <tr key={r.userId} className={`border-t ${isMe ? 'bg-indigo-50' : ''}`}>
+                  <td className="px-1 py-2 text-xs font-semibold">{medal(r.rank)}</td>
+                  <td className="px-1 py-2 text-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                    {r.name}{isMe ? ' (deg)' : ''}
+                  </td>
+                  <td className="px-1 py-2 text-xs text-right font-bold text-indigo-600">{r.minutes}</td>
+                  <td className="px-1 py-2 text-[10px] text-right text-gray-400">
+                    {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
