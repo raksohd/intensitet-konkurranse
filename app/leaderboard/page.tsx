@@ -94,10 +94,11 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Filter: fast 2x2-rutenett, alle knapper lik bredde og pent alignet */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+            className={`py-2 rounded-lg text-sm font-medium text-center ${
               tab === t ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 shadow'
             }`}>
             {t === 'total' ? 'Totalt' : t === 'month' ? 'Måned' : t === 'week' ? 'Uke' : 'Dag'}
@@ -127,7 +128,7 @@ export default function LeaderboardPage() {
         <div className="mb-3">
           <input type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
             onChange={(e) => setDayISO(e.target.value)}
-            className="border rounded-lg px-3 py-2" />
+            className="border rounded-lg px-3 py-2 w-full" />
         </div>
       )}
       {tab === 'total' && (
@@ -139,10 +140,10 @@ export default function LeaderboardPage() {
       <div className="bg-white rounded-2xl shadow overflow-hidden">
         <table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '34px' }} />
+            <col style={{ width: '32px' }} />
             <col />
-            <col style={{ width: '52px' }} />
-            <col style={{ width: '58px' }} />
+            <col style={{ width: '50px' }} />
+            <col style={{ width: '54px' }} />
           </colgroup>
           <thead className="bg-gray-50 text-gray-500">
             <tr>
@@ -158,9 +159,11 @@ export default function LeaderboardPage() {
               const isMe = r.userId === meId
               return (
                 <tr key={r.userId} className={`border-t ${isMe ? 'bg-indigo-50' : ''}`}>
-                  <td className="px-1 py-2 text-xs font-semibold">{medal(r.rank)}</td>
-                  <td className="px-1 py-2 text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                    {r.name}{isMe ? ' (deg)' : ''}
+                  <td className="px-1 py-2 text-xs font-semibold text-gray-900">{medal(r.rank)}</td>
+                  <td className="px-1 py-2 text-xs text-gray-900">
+                    <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                      {r.name}{isMe ? ' (deg)' : ''}
+                    </div>
                   </td>
                   <td className="px-1 py-2 text-xs text-right font-bold text-indigo-600">{r.minutes}</td>
                   <td className="px-1 py-2 text-[10px] text-right text-gray-400">
