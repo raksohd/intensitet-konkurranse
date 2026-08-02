@@ -138,42 +138,40 @@ export default function LeaderboardPage() {
       )}
  
       <div className="bg-white rounded-2xl shadow overflow-hidden">
-        <table className="w-full table-fixed">
-          <colgroup>
-            <col style={{ width: '32px' }} />
-            <col />
-            <col style={{ width: '50px' }} />
-            <col style={{ width: '54px' }} />
-          </colgroup>
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              <th className="px-1 py-2 text-[11px] text-left font-semibold">#</th>
-              <th className="px-1 py-2 text-[11px] text-left font-semibold">Navn</th>
-              <th className="px-1 py-2 text-[11px] text-right font-semibold">Min</th>
-              <th className="px-1 py-2 text-[11px] text-right font-semibold">Sist</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const lastDate = lastRegByUserId.get(r.userId)
-              const isMe = r.userId === meId
-              return (
-                <tr key={r.userId} className={`border-t ${isMe ? 'bg-indigo-50' : ''}`}>
-                  <td className="px-1 py-2 text-xs font-semibold text-gray-900">{medal(r.rank)}</td>
-                  <td className="px-1 py-2 text-xs text-gray-900">
-                    <div className="block overflow-hidden text-ellipsis whitespace-nowrap">
-                      {r.name}{isMe ? ' (deg)' : ''}
-                    </div>
-                  </td>
-                  <td className="px-1 py-2 text-xs text-right font-bold text-indigo-600">{r.minutes}</td>
-                  <td className="px-1 py-2 text-[10px] text-right text-gray-400">
-                    {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+       <table className="w-full table-fixed">
+  <colgroup>
+    <col style={{ width: '32px' }} />
+    <col />
+    <col style={{ width: '50px' }} />
+    <col style={{ width: '54px' }} />
+  </colgroup>
+  <thead className="bg-gray-50 text-gray-500">
+    <tr>
+      <th className="px-1 py-2 text-[11px] text-left font-semibold">#</th>
+      <th className="px-1 py-2 text-[11px] text-left font-semibold">Navn</th>
+      <th className="px-1 py-2 text-[11px] text-right font-semibold">Min</th>
+      <th className="px-1 py-2 text-[11px] text-right font-semibold">Sist</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map((r) => {
+      const lastDate = lastRegByUserId.get(r.userId)
+      const isMe = r.userId === meId
+      return (
+        <tr key={r.userId} className={`border-t ${isMe ? 'bg-indigo-50' : ''}`}>
+          <td className="px-1 py-2 text-xs font-semibold text-gray-900">{medal(r.rank)}</td>
+          <td className="px-1 py-2 text-xs text-gray-900" style={{ background: 'yellow' }}>
+            NAVN: [{r.name}] LENGDE: {r.name?.length ?? 'MANGLER'}
+          </td>
+          <td className="px-1 py-2 text-xs text-right font-bold text-indigo-600">{r.minutes}</td>
+          <td className="px-1 py-2 text-[10px] text-right text-gray-400">
+            {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
+          </td>
+        </tr>
+      )
+    })}
+  </tbody>
+</table>
       </div>
     </div>
   )
