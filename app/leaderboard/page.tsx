@@ -49,9 +49,7 @@ export default function LeaderboardPage() {
         supabase.from('profiles').select('*').eq('is_active', true),
         supabase.from('registrations').select('*'),
       ])
-      // Filtrerer bort eventuelle profiler uten et ordentlig navn (f.eks. gamle testbrukere)
-      const cleanProfiles = (p || []).filter((prof) => prof.full_name && prof.full_name.trim().length > 0)
-      setProfiles(cleanProfiles)
+      setProfiles(p || [])
       setRegs(r || [])
       setLoading(false)
     }
@@ -100,15 +98,16 @@ export default function LeaderboardPage() {
   ]
  
   return (
-    <div className="w-full text-left">
-      <h1 className="text-xl font-bold mb-4 text-left">Leaderboard 🏆</h1>
+    <div>
+      <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      <div className="flex flex-wrap gap-2 mb-4 w-full">
+      {/* Filterknapper: ren grid, 2 kolonner, alltid lik bredde */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 basis-[48%] py-2 rounded-lg text-sm font-medium text-center ${
+            className={`py-2 rounded-lg text-sm font-medium text-center ${
               tab === t.key ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 shadow'
             }`}
           >
@@ -143,40 +142,43 @@ export default function LeaderboardPage() {
         </div>
       )}
       {tab === 'total' && (
-        <p className="text-sm text-gray-500 mb-3 text-left">
+        <p className="text-sm text-gray-500 mb-3">
           Hele konkurranseperioden: {formatNorwegian(COMPETITION_START)} - {formatNorwegian(COMPETITION_END)}
         </p>
       )}
  
-      <div className="bg-white rounded-2xl shadow overflow-hidden w-full">
-        <table className="w-full border-collapse">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              <th className="px-2 py-2 text-[11px] text-left font-semibold" style={{ width: '28px' }}>#</th>
-              <th className="px-2 py-2 text-[11px] text-left font-semibold">Navn</th>
-              <th className="px-2 py-2 text-[11px] text-right font-semibold" style={{ width: '48px' }}>Min</th>
-              <th className="px-2 py-2 text-[11px] text-right font-semibold" style={{ width: '52px' }}>Sist</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const lastDate = lastRegByUserId.get(r.userId)
-              const isMe = r.userId === meId
-              return (
-                <tr key={r.userId} className={`border-t ${isMe ? 'bg-indigo-50' : ''}`}>
-                  <td className="px-2 py-2 text-xs font-semibold text-gray-900">{medal(r.rank)}</td>
-                  <td className="px-2 py-2 text-xs text-gray-900 max-w-0">
-                    <div className="truncate">{r.name}{isMe ? ' (deg)' : ''}</div>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-right font-bold text-indigo-600">{r.minutes}</td>
-                  <td className="px-2 py-2 text-[10px] text-right text-gray-400">
-                    {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      {/* Leaderboard-liste: flexbox-rader (ikke tabell), garantert stabil bredde-fordeling */}
+      <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b text-gray-500 text-[11px] font-semibold">
+          <div className="w-8 flex-shrink-0">#</div>
+          <div className="flex-1 min-w-0">Navn</div>
+          <div className="w-12 flex-shrink-0 text-right">Min</div>
+          <div className="w-14 flex-shrink-0 text-right">Sist</div>
+        </div>
+ 
+        {rows.map((r) => {
+          const lastDate = lastRegByUserId.get(r.userId)
+          const isMe = r.userId === meId
+          return (
+            <div key={r.userId}
+              className={`flex items-center gap-2 px-3 py-2.5 border-t ${isMe ? 'bg-indigo-50' : ''}`}>
+              <div className="w-8 flex-shrink-0 text-xs font-semibold text-gray-900">
+                {medal(r.rank)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-xs text-gray-900">
+                  {r.name}{isMe ? ' (deg)' : ''}
+                </p>
+              </div>
+              <div className="w-12 flex-shrink-0 text-right text-xs font-bold text-indigo-600">
+                {r.minutes}
+              </div>
+              <div className="w-14 flex-shrink-0 text-right text-[10px] text-gray-400">
+                {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
