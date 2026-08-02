@@ -101,7 +101,6 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      {/* Filterknapper: ren grid, 2 kolonner, alltid lik bredde */}
       <div className="grid grid-cols-2 gap-2 mb-4">
         {tabs.map((t) => (
           <button
@@ -147,7 +146,6 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Leaderboard-liste: flexbox-rader (ikke tabell), garantert stabil bredde-fordeling */}
       <div className="bg-white rounded-2xl shadow overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b text-gray-500 text-[11px] font-semibold">
           <div className="w-8 flex-shrink-0">#</div>
