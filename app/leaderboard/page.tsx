@@ -90,10 +90,10 @@ export default function LeaderboardPage() {
   const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
  
   const badgeStyle = (rank: number) => {
-    if (rank === 1) return 'bg-yellow-300 text-yellow-900'
-    if (rank === 2) return 'bg-gray-300 text-gray-800'
-    if (rank === 3) return 'bg-orange-300 text-orange-900'
-    return 'bg-indigo-100 text-indigo-700'
+    if (rank === 1) return { background: '#fde047', color: '#78350f' }
+    if (rank === 2) return { background: '#d1d5db', color: '#1f2937' }
+    if (rank === 3) return { background: '#fdba74', color: '#7c2d12' }
+    return { background: '#e0e7ff', color: '#3730a3' }
   }
   const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null)
  
@@ -101,13 +101,14 @@ export default function LeaderboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
  
-      {/* Tab-valg: enkle knapper som bryter til ny linje ved behov - fungerer likt på alle skjermstørrelser */}
       <div className="flex flex-wrap gap-2 mb-4">
         {(['total', 'month', 'week', 'day'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
-              tab === t ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 shadow'
-            }`}>
+            style={{
+              background: tab === t ? '#4f46e5' : '#ffffff',
+              color: tab === t ? '#ffffff' : '#4b5563',
+            }}
+            className="px-3 py-1.5 rounded-full text-sm whitespace-nowrap shadow">
             {t === 'total' ? 'Totalt' : t === 'month' ? 'Måned' : t === 'week' ? 'Uke' : 'Dag'}
           </button>
         ))}
@@ -144,27 +145,47 @@ export default function LeaderboardPage() {
         </p>
       )}
  
-      {/* Ett samlet design - identisk på mobil (stående/liggende), nettbrett og PC */}
-      <div className="space-y-2">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {rows.map((r) => {
           const lastDate = lastRegByUserId.get(r.userId)
+          const isMe = r.userId === meId
           return (
             <div key={r.userId}
-              className={`bg-white rounded-xl shadow px-4 py-3 flex items-center gap-3 ${
-                r.userId === meId ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''
-              }`}>
-              <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg ${badgeStyle(r.rank)}`}>
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '48px 1fr 80px',
+                alignItems: 'center',
+                gap: '12px',
+                background: isMe ? '#eef2ff' : '#ffffff',
+                border: isMe ? '2px solid #818cf8' : '2px solid transparent',
+                borderRadius: '12px',
+                padding: '12px 16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '9999px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 'bold', fontSize: '18px', ...badgeStyle(r.rank),
+              }}>
                 {medal(r.rank) || r.rank}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-medium truncate ${r.userId === meId ? 'text-indigo-700' : 'text-gray-800'}`}>
-                  {r.name}{r.userId === meId ? ' (deg)' : ''}
+ 
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <p style={{
+                  fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  color: isMe ? '#4338ca' : '#1f2937',
+                }}>
+                  {r.name}{isMe ? ' (deg)' : ''}
                 </p>
               </div>
-              <div className="flex-shrink-0 text-right min-w-[72px]">
-                <p className="text-xl font-bold text-indigo-600 leading-tight">{r.minutes}</p>
-                <p className="text-[11px] text-gray-400 leading-tight whitespace-nowrap">
-                  {lastDate ? `Sist: ${formatNorwegian(lastDate)}` : 'Ingen data'}
+ 
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#4f46e5', lineHeight: 1.1 }}>
+                  {r.minutes}
+                </p>
+                <p style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+                  {lastDate ? formatNorwegian(lastDate) : '-'}
                 </p>
               </div>
             </div>
