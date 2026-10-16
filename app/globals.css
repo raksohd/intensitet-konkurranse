@@ -1,3 +1,57 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #F3F5F9;
+  color: #12203A;
+  font-family: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-display {
+  font-family: 'Bricolage Grotesque', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tydelig tastaturfokus */
+:focus-visible {
+  outline: 2px solid #FF4B3E;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+input, select, button {
+  font-family: inherit;
+}
+
+/* Enkelt puls-linje-anker i hero-kortet (tegnes én gang) */
+@keyframes draw-pulse {
+  from { stroke-dashoffset: 400; }
+  to { stroke-dashoffset: 0; }
+}
+.pulse-line {
+  stroke-dasharray: 400;
+  animation: draw-pulse 1.4s ease-out 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-line { animation: none; stroke-dashoffset: 0; }
+  * { scroll-behavior: auto !important; }
+}
+
+/* Skjul scrollbar på horisontale chip-rader */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

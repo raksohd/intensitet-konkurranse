@@ -1,182 +1,317 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, Registration } from '@/lib/types'
 import { buildLeaderboard } from '@/lib/leaderboard'
 import {
-  todayISO, formatNorwegian, computeMissingDates, computeStreak, getStatus,
-  computeAverageLastNDays,
+  todayISO, formatNorwegian, computeMissingDates, computeStreak, getStatus,
+  computeAverageLastNDays,
 } from '@/lib/dates'
 import { COMPETITION_START, COMPETITION_END } from '@/lib/constants'
- 
+import {
+  WEEKLY_GOAL, computeBadges, computeRecords, firstName, getMonthResults,
+  monthWinCounts, shortDate, weekMinutes,
+} from '@/lib/stats'
+import { Card, Heatmap, Loading, Ring, SectionTitle, TrophyIcon } from '@/components/ui'
+
 export default function DashboardPage() {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(true)
-  const [me, setMe] = useState<Profile | null>(null)
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [myRegs, setMyRegs] = useState<Registration[]>([])
-  const [allRegs, setAllRegs] = useState<Registration[]>([])
-  const [minutesInput, setMinutesInput] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveMsg, setSaveMsg] = useState('')
- 
-  const load = async () => {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const [{ data: profile }, { data: allProfiles }, { data: regs }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('profiles').select('*').eq('is_active', true),
-      supabase.from('registrations').select('*'),
-    ])
-    setMe(profile)
-    setProfiles(allProfiles || [])
-    setAllRegs(regs || [])
-    setMyRegs((regs || []).filter((r) => r.user_id === user.id))
-    setLoading(false)
-  }
- 
-  useEffect(() => { load() }, [])
- 
-  if (loading || !me) return <div className="text-center py-20 text-gray-500">Laster...</div>
- 
-  const status = getStatus()
-  const today = todayISO()
-  const todaysReg = myRegs.find((r) => r.date === today)
-  const myRegisteredDates = new Set(myRegs.map((r) => r.date))
-  const missingDates = computeMissingDates(myRegisteredDates)
-  const streak = computeStreak(myRegisteredDates)
-  const avg7 = computeAverageLastNDays(myRegs, 7)
-  const avg28 = computeAverageLastNDays(myRegs, 28)
- 
-  const leaderboard = buildLeaderboard(profiles, allRegs)
-  const myRow = leaderboard.find((r) => r.userId === me.id)
-  const myRank = myRow?.rank ?? '-'
-  const myTotal = myRow?.minutes ?? 0
- 
-  let gapToNext: number | null = null
-  let nextName = ''
-  if (myRow && myRow.rank > 1) {
-    const above = leaderboard.find((r) => r.rank === myRow.rank - 1)
-    if (above) { gapToNext = above.minutes - myRow.minutes; nextName = above.name }
-  }
- 
-  const saveToday = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const minutes = parseInt(minutesInput, 10)
-    if (isNaN(minutes) || minutes < 0) return
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { error } = await supabase.from('registrations').upsert(
-      { user_id: user.id, date: today, minutes },
-      { onConflict: 'user_id,date' }
-    )
-    setSaving(false)
-    if (!error) {
-      setSaveMsg('Lagret!')
-      setMinutesInput('')
-      load()
-    }
-  }
- 
-  const statCards = [
-    { label: 'Mine minutter totalt', value: myTotal },
-    { label: 'Min plassering', value: `#${myRank} av ${leaderboard.length}` },
-    {
-      label: gapToNext !== null ? `Til ${nextName}` : 'Plassering',
-      value: gapToNext !== null ? `${gapToNext} min` : (myRow?.rank === 1 ? '🏆 Du leder!' : '-'),
-    },
-    { label: 'Streak', value: `${streak} dager` },
-    { label: 'Snitt/dag (7 dager)', value: `${avg7} min` },
-    { label: 'Snitt/dag (4 uker)', value: `${avg28} min` },
-  ]
- 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Hei, {me.full_name.split(' ')[0] || 'der'}! 👋</h1>
-        <p className="text-gray-500">Her er statusen din i konkurransen.</p>
-      </div>
- 
-      {status === 'not-started' && (
-        <div className="bg-blue-50 text-blue-800 rounded-xl p-4 text-sm">
-          Konkurransen starter {formatNorwegian(COMPETITION_START)}. Gjør deg klar!
-        </div>
-      )}
-      {status === 'ended' && (
-        <div className="bg-purple-50 text-purple-800 rounded-xl p-4 text-sm">
-          Konkurransen er avsluttet ({formatNorwegian(COMPETITION_END)}). Takk for innsatsen! 🎉
-        </div>
-      )}
- 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {statCards.map((card, i) => (
-          <StatCard key={i} label={card.label} value={card.value} />
-        ))}
-      </div>
- 
-      {status === 'active' && (
-        <div className="bg-white rounded-2xl shadow p-5">
-          <h2 className="font-semibold mb-3">Dagens registrering ({formatNorwegian(today)})</h2>
-          {todaysReg ? (
-            <div className="flex items-center justify-between">
-              <p className="text-green-700 font-medium">✅ Registrert: {todaysReg.minutes} minutter</p>
-              <Link href={`/register?date=${today}`} className="text-indigo-600 text-sm hover:underline">Endre</Link>
-            </div>
-          ) : (
-            <>
-              <p className="text-gray-500 text-sm mb-3">Du har ikke registrert dagens økt enda.</p>
-              <form onSubmit={saveToday} className="flex gap-2">
-                <input type="number" min={0} required value={minutesInput}
-                  onChange={(e) => setMinutesInput(e.target.value)}
-                  placeholder="Antall minutter"
-                  className="flex-1 border rounded-lg px-3 py-2" />
-                <button disabled={saving}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50">
-                  {saving ? 'Lagrer...' : 'Lagre'}
-                </button>
-              </form>
-              {saveMsg && <p className="text-green-700 text-sm mt-2">{saveMsg}</p>}
-            </>
-          )}
-        </div>
-      )}
- 
-      {missingDates.length > 0 && (
-        <div className="bg-amber-50 rounded-2xl p-5">
-          <h2 className="font-semibold mb-2 text-amber-900">Glemt å registrere? 🕵️</h2>
-          <p className="text-sm text-amber-800 mb-3">Du mangler registrering for {missingDates.length} dag(er):</p>
-          <div className="flex flex-wrap gap-2">
-            {missingDates.slice(0, 10).map((d) => (
-              <Link key={d} href={`/register?date=${d}`}
-                className="text-sm bg-white border border-amber-300 rounded-lg px-3 py-1 hover:bg-amber-100">
-                {formatNorwegian(d)}
-              </Link>
-            ))}
-            {missingDates.length > 10 && <span className="text-sm text-amber-700">+{missingDates.length - 10} til</span>}
-          </div>
-        </div>
-      )}
- 
-      <div className="flex gap-3">
-        <Link href="/leaderboard" className="flex-1 text-center bg-white shadow rounded-xl py-3 font-medium hover:bg-gray-50">
-          Se leaderboard 🏆
-        </Link>
-        <Link href="/history" className="flex-1 text-center bg-white shadow rounded-xl py-3 font-medium hover:bg-gray-50">
-          Min historikk 📋
-        </Link>
-      </div>
-    </div>
-  )
-}
- 
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-2xl shadow p-4">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-lg font-bold mt-1">{value}</p>
-    </div>
-  )
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [me, setMe] = useState<Profile | null>(null)
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [myRegs, setMyRegs] = useState<Registration[]>([])
+  const [allRegs, setAllRegs] = useState<Registration[]>([])
+  const [minutesInput, setMinutesInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const [{ data: profile }, { data: allProfiles }, { data: regs }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
+      supabase.from('profiles').select('*').eq('is_active', true),
+      supabase.from('registrations').select('*'),
+    ])
+    setMe(profile)
+    setProfiles(allProfiles || [])
+    setAllRegs(regs || [])
+    setMyRegs((regs || []).filter((r) => r.user_id === user.id))
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const monthResults = useMemo(() => getMonthResults(profiles, allRegs), [profiles, allRegs])
+  const wins = useMemo(() => monthWinCounts(monthResults), [monthResults])
+
+  if (loading || !me) return <Loading />
+
+  const status = getStatus()
+  const today = todayISO()
+  const todaysReg = myRegs.find((r) => r.date === today)
+  const myRegisteredDates = new Set(myRegs.map((r) => r.date))
+  const missingDates = computeMissingDates(myRegisteredDates)
+  const streak = computeStreak(myRegisteredDates)
+  const avg7 = computeAverageLastNDays(myRegs, 7)
+  const avg28 = computeAverageLastNDays(myRegs, 28)
+  const records = computeRecords(myRegs)
+  const thisWeek = weekMinutes(myRegs)
+  const badges = computeBadges(myRegs, wins.get(me.id) || 0)
+  const earned = badges.filter((b) => b.earned)
+
+  const leaderboard = buildLeaderboard(profiles, allRegs)
+  const myRow = leaderboard.find((r) => r.userId === me.id)
+  const myRank = myRow?.rank ?? '-'
+  const myTotal = myRow?.minutes ?? 0
+
+  let gapToNext: number | null = null
+  let nextName = ''
+  if (myRow && myRow.rank > 1) {
+    const above = leaderboard.find((r) => r.rank === myRow.rank - 1)
+    if (above) { gapToNext = above.minutes - myRow.minutes; nextName = above.name }
+  }
+
+  // Månedskampen: aktiv måned (eller siste ferdige hvis konkurransen er over)
+  const month =
+    monthResults.find((m) => m.current) ||
+    [...monthResults].reverse().find((m) => m.completed) ||
+    monthResults[0]
+  const monthMe = month?.rows.find((r) => r.userId === me.id)
+  const monthLeader = month?.rows[0]
+  const iLeadMonth = !!monthMe && month.topMinutes > 0 && monthMe.rank === 1
+  const monthGap = monthMe && monthLeader ? monthLeader.minutes - monthMe.minutes : 0
+  const neededPerDay =
+    month && month.current && monthGap > 0 && month.daysLeft > 0 ? Math.ceil(monthGap / month.daysLeft) : null
+
+  const saveToday = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const minutes = parseInt(minutesInput, 10)
+    if (isNaN(minutes) || minutes < 0) return
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('registrations').upsert(
+      { user_id: user.id, date: today, minutes },
+      { onConflict: 'user_id,date' }
+    )
+    setSaving(false)
+    if (!error) {
+      setSaveMsg('Lagret!')
+      setMinutesInput('')
+      load()
+    }
+  }
+
+  const statCards = [
+    { label: 'Mine minutter totalt', value: myTotal, unit: 'min' },
+    { label: 'Min plassering', value: `#${myRank}`, unit: `av ${leaderboard.length}` },
+    {
+      label: gapToNext !== null ? `Opp til ${firstName(nextName)}` : 'Plassering',
+      value: gapToNext !== null ? gapToNext : (myRow?.rank === 1 ? 'Du leder' : '–'),
+      unit: gapToNext !== null ? 'min' : '',
+    },
+    { label: 'Dager på rad', value: streak, unit: streak === 1 ? 'dag' : 'dager' },
+    { label: 'Snitt/dag, 7 dager', value: avg7, unit: 'min' },
+    { label: 'Snitt/dag, 4 uker', value: avg28, unit: 'min' },
+  ]
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-display text-[1.75rem] leading-tight font-bold">Hei, {firstName(me.full_name) === 'Ukjent' ? 'der' : firstName(me.full_name)}</h1>
+        <p className="text-sm text-ink-soft mt-0.5">Slik ligger du an i konkurransen.</p>
+      </div>
+
+      {status === 'not-started' && (
+        <div className="bg-zone-1 text-ink rounded-2xl p-4 text-sm">
+          Konkurransen starter {formatNorwegian(COMPETITION_START)}. Gjør deg klar!
+        </div>
+      )}
+      {status === 'ended' && (
+        <div className="bg-zone-1 text-ink rounded-2xl p-4 text-sm">
+          Konkurransen er avsluttet ({formatNorwegian(COMPETITION_END)}). Takk for innsatsen!
+        </div>
+      )}
+
+      <div className="grid gap-5 md:grid-cols-2 items-start">
+        {/* Dagens registrering */}
+        {status === 'active' && (
+          <Card>
+            <SectionTitle aside={formatNorwegian(today)}>Dagens økt</SectionTitle>
+            {todaysReg ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-ink">
+                  <span className="font-display text-3xl font-bold num">{todaysReg.minutes}</span>
+                  <span className="text-ink-soft"> min registrert i dag</span>
+                </p>
+                <Link href={`/register?date=${today}`} className="text-sm font-semibold text-pulse-dark bg-pulse/10 rounded-xl px-3.5 py-2">
+                  Endre
+                </Link>
+              </div>
+            ) : (
+              <>
+                <p className="text-ink-soft text-sm mb-3">Ingenting registrert for i dag ennå.</p>
+                <form onSubmit={saveToday} className="flex gap-2">
+                  <input
+                    type="number" min={0} required value={minutesInput} inputMode="numeric"
+                    onChange={(e) => setMinutesInput(e.target.value)}
+                    placeholder="Minutter"
+                    aria-label="Antall intensitetsminutter i dag"
+                    className="flex-1 min-w-0 bg-paper rounded-xl px-4 py-3 text-lg font-semibold num border border-transparent focus:border-pulse outline-none"
+                  />
+                  <button
+                    disabled={saving}
+                    className="bg-pulse text-white px-5 py-3 rounded-xl font-bold hover:bg-pulse-dark disabled:opacity-50"
+                  >
+                    {saving ? 'Lagrer…' : 'Lagre'}
+                  </button>
+                </form>
+                {saveMsg && <p className="text-emerald-700 text-sm mt-2">{saveMsg}</p>}
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* Ukemål */}
+        <Card className="flex items-center gap-5">
+          <Ring value={thisWeek} max={WEEKLY_GOAL} size={112} stroke={11}>
+            <span className="font-display text-2xl font-bold num leading-none">{thisWeek}</span>
+            <span className="text-[11px] text-ink-soft mt-0.5">av {WEEKLY_GOAL}</span>
+          </Ring>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold">Denne uken</h2>
+            <p className="text-sm text-ink-soft mt-1">
+              {thisWeek >= WEEKLY_GOAL
+                ? 'Ukemålet på 150 minutter er nådd.'
+                : `${WEEKLY_GOAL - thisWeek} min igjen til ukemålet på ${WEEKLY_GOAL}.`}
+            </p>
+            {records.weeksAtGoal > 0 && (
+              <p className="text-xs text-ink-soft mt-2">Ukemål nådd {records.weeksAtGoal} {records.weeksAtGoal === 1 ? 'gang' : 'ganger'} så langt</p>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Månedskampen */}
+      {month && (
+        <section className="rounded-3xl bg-ink text-white p-6 shadow-lift">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-white/70">
+              <TrophyIcon className="w-5 h-5 text-gold" />
+              Månedskampen · {month.name}
+            </div>
+            {month.current && (
+              <span className="text-xs text-white/70">{month.daysLeft} {month.daysLeft === 1 ? 'dag' : 'dager'} igjen</span>
+            )}
+          </div>
+
+          {month.topMinutes === 0 ? (
+            <p className="font-display text-2xl font-bold mt-3">Ingen minutter registrert enda</p>
+          ) : iLeadMonth ? (
+            <>
+              <p className="font-display text-3xl font-extrabold mt-3 leading-tight">Du leder {month.name.toLowerCase()}</p>
+              <p className="text-white/80 mt-1.5 text-sm">
+                {month.winners.length > 1
+                  ? `Delt ledelse med ${month.topMinutes} min.`
+                  : `${month.topMinutes - month.runnerUpMinutes} min foran nestemann.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-display text-3xl font-extrabold mt-3 leading-tight">
+                {monthLeader ? firstName(monthLeader.name) : '–'} leder
+              </p>
+              <p className="text-white/80 mt-1.5 text-sm">
+                Du ligger #{monthMe?.rank ?? '–'} med {monthMe?.minutes ?? 0} min, {monthGap} bak.
+                {neededPerDay !== null && ` Ta ${neededPerDay} min mer per dag enn lederen for å ta igjen.`}
+              </p>
+            </>
+          )}
+
+          <div className="mt-4 flex gap-4 flex-wrap text-xs text-white/60">
+            {month.rows.slice(0, 3).map((r, i) => (
+              <span key={r.userId}>
+                {i + 1}. {firstName(r.name)} <span className="num text-white/90 font-semibold">{r.minutes}</span>
+              </span>
+            ))}
+          </div>
+
+          <Link href="/leaderboard" className="inline-block mt-4 text-sm font-semibold text-white bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2">
+            Se hele topplisten
+          </Link>
+        </section>
+      )}
+
+      {/* Nøkkeltall */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {statCards.map((card, i) => (
+          <div key={i} className="bg-card rounded-2xl shadow-soft p-4">
+            <p className="text-xs text-ink-soft">{card.label}</p>
+            <p className="mt-1.5 flex items-baseline gap-1">
+              <span className="font-display text-2xl font-bold num text-ink">{card.value}</span>
+              {card.unit && <span className="text-xs text-ink-soft">{card.unit}</span>}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Glemt å registrere */}
+      {missingDates.length > 0 && (
+        <Card className="!bg-zone-4/[0.15] !shadow-none">
+          <h2 className="font-display text-lg font-semibold">Mangler registrering</h2>
+          <p className="text-sm text-ink-soft mt-1 mb-3">
+            {missingDates.length} {missingDates.length === 1 ? 'dag' : 'dager'} uten registrering. Trykk for å legge inn:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {missingDates.slice(0, 10).map((d) => (
+              <Link
+                key={d}
+                href={`/register?date=${d}`}
+                className="text-sm font-semibold bg-white rounded-xl px-3.5 py-2 hover:bg-paper shadow-soft"
+              >
+                {shortDate(d)}
+              </Link>
+            ))}
+            {missingDates.length > 10 && <span className="text-sm text-ink-soft self-center">+{missingDates.length - 10} til</span>}
+          </div>
+        </Card>
+      )}
+
+      {/* Aktivitetskalender */}
+      <Card>
+        <SectionTitle aside="Hver rute er én dag">Din aktivitetskalender</SectionTitle>
+        <Heatmap regs={myRegs} />
+      </Card>
+
+      {/* Prestasjoner */}
+      <Card>
+        <SectionTitle aside={`${earned.length} av ${badges.length}`}>Prestasjoner</SectionTitle>
+        <ul className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+          {badges.map((b) => (
+            <li
+              key={b.id}
+              title={b.desc}
+              className={`rounded-2xl p-3 text-center ${b.earned ? 'bg-paper' : 'bg-paper/50'}`}
+            >
+              <div className={`text-2xl ${b.earned ? '' : 'grayscale opacity-30'}`} aria-hidden="true">{b.icon}</div>
+              <p className={`text-[11px] font-semibold mt-1 leading-tight ${b.earned ? 'text-ink' : 'text-ink-soft/70'}`}>{b.title}</p>
+              <p className="sr-only">{b.earned ? 'Oppnådd' : 'Ikke oppnådd'}: {b.desc}</p>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <div className="flex gap-3">
+        <Link href="/leaderboard" className="flex-1 text-center bg-card shadow-soft rounded-2xl py-3.5 font-semibold hover:bg-white">
+          Topplisten
+        </Link>
+        <Link href="/history" className="flex-1 text-center bg-card shadow-soft rounded-2xl py-3.5 font-semibold hover:bg-white">
+          Min historikk
+        </Link>
+      </div>
+    </div>
+  )
 }

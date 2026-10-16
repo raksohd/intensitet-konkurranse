@@ -1,7 +1,36 @@
 import type { Config } from 'tailwindcss'
+
 const config: Config = {
-  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
-  theme: { extend: {} },
-  plugins: [],
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        ink: '#12203A',
+        'ink-soft': '#4A5873',
+        paper: '#F3F5F9',
+        card: '#FFFFFF',
+        line: '#E3E8F0',
+        pulse: '#FF4B3E',
+        'pulse-dark': '#D93428',
+        zone: {
+          1: '#DDE6F3',
+          2: '#9CC3F0',
+          3: '#3FC6A0',
+          4: '#FFB627',
+          5: '#FF4B3E',
+        },
+        gold: '#F2B705',
+      },
+      fontFamily: {
+        display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['"Instrument Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+      },
+      boxShadow: {
+        soft: '0 1px 2px rgba(18,32,58,.05), 0 6px 20px -8px rgba(18,32,58,.12)',
+        lift: '0 2px 4px rgba(18,32,58,.06), 0 18px 40px -16px rgba(18,32,58,.28)',
+      },
+    },
+  },
+  plugins: [],
 }
 export default config

@@ -3,181 +3,455 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, Registration } from '@/lib/types'
 import { buildLeaderboard } from '@/lib/leaderboard'
-import { formatNorwegian, toISO, dfMax, dfMin } from '@/lib/dates'
+import { formatNorwegian, toISO, todayISO, dfMax, dfMin } from '@/lib/dates'
 import { COMPETITION_START, COMPETITION_END } from '@/lib/constants'
 import {
-  eachWeekOfInterval, eachMonthOfInterval, startOfWeek, endOfWeek,
-  startOfMonth, endOfMonth, parseISO, format,
+  getMonthResults, monthWinCounts, rankChanges, lastRegByUser, monthLabel,
+  shortDate, firstName, MonthResult,
+} from '@/lib/stats'
+import {
+  eachWeekOfInterval, eachMonthOfInterval, startOfWeek, endOfWeek,
+  startOfMonth, endOfMonth, parseISO, format, addDays,
 } from 'date-fns'
- 
-type Tab = 'total' | 'month' | 'week' | 'day'
- 
+import { nb } from 'date-fns/locale'
+import { Avatar, Card, Delta, Loading, PageTitle, Segmented, SectionTitle, TrophyIcon } from '@/components/ui'
+
+type Tab = 'month' | 'total' | 'week' | 'day'
+
+const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : String(rank))
+
+function lastSeen(iso: string | undefined, today: string): string {
+  if (!iso) return 'Ingen registreringer'
+  if (iso === today) return 'Registrerte i dag'
+  const yesterday = toISO(addDays(parseISO(today), -1))
+  if (iso === yesterday) return 'Registrerte i går'
+  return `Sist registrert ${shortDate(iso)}`
+}
+
 export default function LeaderboardPage() {
-  const supabase = createClient()
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [regs, setRegs] = useState<Registration[]>([])
-  const [meId, setMeId] = useState('')
-  const [tab, setTab] = useState<Tab>('total')
-  const [loading, setLoading] = useState(true)
- 
-  const start = parseISO(COMPETITION_START)
-  const end = parseISO(COMPETITION_END)
-  const clampedToday = dfMax([start, dfMin([end, new Date()])])
- 
-  const [monthIndex, setMonthIndex] = useState(0)
-  const [weekIndex, setWeekIndex] = useState(0)
-  const [dayISO, setDayISO] = useState(toISO(clampedToday))
- 
-  const months = useMemo(() => eachMonthOfInterval({ start, end }), [])
-  const weeks = useMemo(() => eachWeekOfInterval({ start, end }, { weekStartsOn: 1 }), [])
- 
-  useEffect(() => {
-    const mi = months.findIndex((m) => format(m, 'yyyy-MM') === format(clampedToday, 'yyyy-MM'))
-    if (mi >= 0) setMonthIndex(mi)
-    const wi = weeks.findIndex((w) =>
-      clampedToday >= startOfWeek(w, { weekStartsOn: 1 }) && clampedToday <= endOfWeek(w, { weekStartsOn: 1 })
-    )
-    if (wi >= 0) setWeekIndex(wi)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
- 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setMeId(user?.id || '')
-      const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('is_active', true),
-        supabase.from('registrations').select('*'),
-      ])
-      setProfiles(p || [])
-      setRegs(r || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
- 
-  const lastRegByUserId = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const r of regs) {
-      const current = map.get(r.user_id)
-      if (!current || r.date > current) map.set(r.user_id, r.date)
-    }
-    return map
-  }, [regs])
- 
-  if (loading) return <div className="text-center py-20 text-gray-500">Laster...</div>
- 
-  let fromISO: string | undefined
-  let toISOFilter: string | undefined
-  let title = 'Totalt leaderboard'
- 
-  if (tab === 'month') {
-    const m = months[monthIndex]
-    fromISO = toISO(startOfMonth(m))
-    toISOFilter = toISO(endOfMonth(m))
-    title = format(m, 'MMMM yyyy')
-  } else if (tab === 'week') {
-    const w = weeks[weekIndex]
-    fromISO = toISO(startOfWeek(w, { weekStartsOn: 1 }))
-    toISOFilter = toISO(endOfWeek(w, { weekStartsOn: 1 }))
-    title = `Uke: ${formatNorwegian(fromISO)} - ${formatNorwegian(toISOFilter)}`
-  } else if (tab === 'day') {
-    fromISO = dayISO
-    toISOFilter = dayISO
-    title = formatNorwegian(dayISO)
-  }
- 
-  const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
-  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : String(rank))
- 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'total', label: 'Totalt' },
-    { key: 'month', label: 'Måned' },
-    { key: 'week', label: 'Uke' },
-    { key: 'day', label: 'Dag' },
-  ]
- 
-  return (
-    <div>
-      <h1 className="text-xl font-bold mb-4">Leaderboard 🏆</h1>
- 
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`py-2 rounded-lg text-sm font-medium text-center ${
-              tab === t.key ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 shadow'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
- 
-      {tab === 'month' && (
-        <div className="flex items-center gap-2 mb-3">
-          <button disabled={monthIndex <= 0} onClick={() => setMonthIndex((i) => i - 1)}
-            className="px-2 py-1 bg-white rounded shadow disabled:opacity-30">←</button>
-          <span className="text-sm font-medium capitalize">{title}</span>
-          <button disabled={monthIndex >= months.length - 1} onClick={() => setMonthIndex((i) => i + 1)}
-            className="px-2 py-1 bg-white rounded shadow disabled:opacity-30">→</button>
-        </div>
-      )}
-      {tab === 'week' && (
-        <div className="flex items-center gap-2 mb-3">
-          <button disabled={weekIndex <= 0} onClick={() => setWeekIndex((i) => i - 1)}
-            className="px-2 py-1 bg-white rounded shadow disabled:opacity-30">←</button>
-          <span className="text-sm font-medium">{title}</span>
-          <button disabled={weekIndex >= weeks.length - 1} onClick={() => setWeekIndex((i) => i + 1)}
-            className="px-2 py-1 bg-white rounded shadow disabled:opacity-30">→</button>
-        </div>
-      )}
-      {tab === 'day' && (
-        <div className="mb-3">
-          <input type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
-            onChange={(e) => setDayISO(e.target.value)}
-            className="border rounded-lg px-3 py-2 w-full" />
-        </div>
-      )}
-      {tab === 'total' && (
-        <p className="text-sm text-gray-500 mb-3">
-          Hele konkurranseperioden: {formatNorwegian(COMPETITION_START)} - {formatNorwegian(COMPETITION_END)}
-        </p>
-      )}
- 
-      <div className="bg-white rounded-2xl shadow overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b text-gray-500 text-[11px] font-semibold">
-          <div className="w-8 flex-shrink-0">#</div>
-          <div className="flex-1 min-w-0">Navn</div>
-          <div className="w-12 flex-shrink-0 text-right">Min</div>
-          <div className="w-14 flex-shrink-0 text-right">Sist</div>
-        </div>
- 
-        {rows.map((r) => {
-          const lastDate = lastRegByUserId.get(r.userId)
-          const isMe = r.userId === meId
-          return (
-            <div key={r.userId}
-              className={`flex items-center gap-2 px-3 py-2.5 border-t ${isMe ? 'bg-indigo-50' : ''}`}>
-              <div className="w-8 flex-shrink-0 text-xs font-semibold text-gray-900">
-                {medal(r.rank)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-xs text-gray-900">
-                  {r.name}{isMe ? ' (deg)' : ''}
-                </p>
-              </div>
-              <div className="w-12 flex-shrink-0 text-right text-xs font-bold text-indigo-600">
-                {r.minutes}
-              </div>
-              <div className="w-14 flex-shrink-0 text-right text-[10px] text-gray-400">
-                {lastDate ? format(parseISO(lastDate), 'dd.MM') : '-'}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  const supabase = createClient()
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [regs, setRegs] = useState<Registration[]>([])
+  const [meId, setMeId] = useState('')
+  const [tab, setTab] = useState<Tab>('month')
+  const [loading, setLoading] = useState(true)
+
+  const start = parseISO(COMPETITION_START)
+  const end = parseISO(COMPETITION_END)
+  const clampedToday = dfMax([start, dfMin([end, new Date()])])
+
+  const [monthIndex, setMonthIndex] = useState(0)
+  const [weekIndex, setWeekIndex] = useState(0)
+  const [dayISO, setDayISO] = useState(toISO(clampedToday))
+
+  const months = useMemo(() => eachMonthOfInterval({ start, end }), [])
+  const weeks = useMemo(() => eachWeekOfInterval({ start, end }, { weekStartsOn: 1 }), [])
+
+  useEffect(() => {
+    const mi = months.findIndex((m) => format(m, 'yyyy-MM') === format(clampedToday, 'yyyy-MM'))
+    if (mi >= 0) setMonthIndex(mi)
+    const wi = weeks.findIndex((w) =>
+      clampedToday >= startOfWeek(w, { weekStartsOn: 1 }) && clampedToday <= endOfWeek(w, { weekStartsOn: 1 })
+    )
+    if (wi >= 0) setWeekIndex(wi)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setMeId(user?.id || '')
+      const [{ data: p }, { data: r }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('is_active', true),
+        supabase.from('registrations').select('*'),
+      ])
+      setProfiles(p || [])
+      setRegs(r || [])
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const lastRegByUserId = useMemo(() => lastRegByUser(regs), [regs])
+  const monthResults = useMemo(() => getMonthResults(profiles, regs), [profiles, regs])
+  const wins = useMemo(() => monthWinCounts(monthResults), [monthResults])
+
+  const recent = useMemo(() => {
+    const names = new Map(profiles.map((p) => [p.id, p.full_name || 'Ukjent']))
+    return regs
+      .filter((r) => names.has(r.user_id))
+      .map((r) => ({
+        id: r.id,
+        name: names.get(r.user_id) || 'Ukjent',
+        minutes: r.minutes,
+        date: r.date,
+        stamp: new Date(r.updated_at || r.created_at).getTime(),
+      }))
+      .filter((r) => !isNaN(r.stamp))
+      .sort((a, b) => b.stamp - a.stamp)
+      .slice(0, 5)
+  }, [profiles, regs])
+
+  if (loading) return <Loading />
+
+  const today = todayISO()
+  let fromISO: string | undefined
+  let toISOFilter: string | undefined
+  let title = 'Hele konkurransen'
+  let subtitle = `${formatNorwegian(COMPETITION_START)} – ${formatNorwegian(COMPETITION_END)}`
+
+  const currentMonth: MonthResult | undefined = monthResults[monthIndex]
+
+  if (tab === 'month') {
+    const m = months[monthIndex]
+    fromISO = toISO(startOfMonth(m))
+    toISOFilter = toISO(endOfMonth(m))
+    title = monthLabel(m)
+    subtitle = `${formatNorwegian(fromISO)} – ${formatNorwegian(toISOFilter)}`
+  } else if (tab === 'week') {
+    const w = weeks[weekIndex]
+    const ws = startOfWeek(w, { weekStartsOn: 1 })
+    const we = endOfWeek(w, { weekStartsOn: 1 })
+    fromISO = toISO(ws)
+    toISOFilter = toISO(we)
+    title = `Uke ${format(ws, 'I')}`
+    subtitle = `${format(ws, 'd. MMM', { locale: nb })} – ${format(we, 'd. MMM', { locale: nb })}`
+  } else if (tab === 'day') {
+    fromISO = dayISO
+    toISOFilter = dayISO
+    title = format(parseISO(dayISO), 'EEEE d. MMMM', { locale: nb })
+    subtitle = dayISO === today ? 'I dag' : ''
+  }
+
+  const rows = buildLeaderboard(profiles, regs, fromISO, toISOFilter)
+  const changes = rankChanges(profiles, regs, fromISO, toISOFilter)
+  const leaderMinutes = rows.length > 0 ? rows[0].minutes : 0
+  const periodTotal = rows.reduce((s, r) => s + r.minutes, 0)
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'month', label: 'Måned' },
+    { key: 'total', label: 'Totalt' },
+    { key: 'week', label: 'Uke' },
+    { key: 'day', label: 'Dag' },
+  ]
+
+  const completedMonths = monthResults.filter((m) => m.completed && m.winners.length > 0)
+  const tally = Array.from(wins.entries())
+    .map(([id, n]) => ({ id, n, name: profiles.find((p) => p.id === id)?.full_name || 'Ukjent' }))
+    .sort((a, b) => b.n - a.n)
+
+  const stepDay = (delta: number) => {
+    const next = toISO(addDays(parseISO(dayISO), delta))
+    if (next >= COMPETITION_START && next <= COMPETITION_END) setDayISO(next)
+  }
+
+  return (
+    <div>
+      <PageTitle title="Toppliste" sub="Hvem leder, og hvem har vunnet hva" />
+
+      <Segmented options={tabs} value={tab} onChange={setTab} />
+
+      {/* Periodevelger */}
+      <div className="mt-4">
+        {tab === 'month' && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4" role="tablist" aria-label="Velg måned">
+            {monthResults.map((m, i) => (
+              <button
+                key={m.key}
+                role="tab"
+                aria-selected={i === monthIndex}
+                onClick={() => setMonthIndex(i)}
+                className={`shrink-0 px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-1.5 ${
+                  i === monthIndex ? 'bg-pulse text-white shadow-soft' : 'bg-white text-ink-soft shadow-soft'
+                }`}
+              >
+                {m.name}
+                {m.completed && m.winners.length > 0 && <span aria-label="Ferdig, har vinner">🏆</span>}
+                {m.current && i !== monthIndex && <span className="w-1.5 h-1.5 rounded-full bg-pulse" aria-label="Pågår" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === 'week' && (
+          <div className="flex items-center justify-between bg-white rounded-2xl shadow-soft px-2 py-1.5">
+            <button
+              disabled={weekIndex <= 0}
+              onClick={() => setWeekIndex((i) => i - 1)}
+              className="w-10 h-10 rounded-xl text-lg text-ink disabled:opacity-25 hover:bg-paper"
+              aria-label="Forrige uke"
+            >‹</button>
+            <div className="text-center">
+              <p className="font-display font-bold text-ink leading-tight">{title}</p>
+              <p className="text-xs text-ink-soft">{subtitle}</p>
+            </div>
+            <button
+              disabled={weekIndex >= weeks.length - 1}
+              onClick={() => setWeekIndex((i) => i + 1)}
+              className="w-10 h-10 rounded-xl text-lg text-ink disabled:opacity-25 hover:bg-paper"
+              aria-label="Neste uke"
+            >›</button>
+          </div>
+        )}
+
+        {tab === 'day' && (
+          <div className="flex items-center justify-between bg-white rounded-2xl shadow-soft px-2 py-1.5 gap-1">
+            <button
+              disabled={dayISO <= COMPETITION_START}
+              onClick={() => stepDay(-1)}
+              className="w-10 h-10 rounded-xl text-lg text-ink disabled:opacity-25 hover:bg-paper"
+              aria-label="Forrige dag"
+            >‹</button>
+            <div className="flex-1 text-center min-w-0">
+              <p className="font-display font-bold text-ink leading-tight capitalize truncate">{title}</p>
+              <input
+                type="date" value={dayISO} min={COMPETITION_START} max={COMPETITION_END}
+                onChange={(e) => e.target.value && setDayISO(e.target.value)}
+                className="mt-0.5 text-xs text-ink-soft bg-transparent text-center"
+                aria-label="Velg dato"
+              />
+            </div>
+            <button
+              disabled={dayISO >= COMPETITION_END}
+              onClick={() => stepDay(1)}
+              className="w-10 h-10 rounded-xl text-lg text-ink disabled:opacity-25 hover:bg-paper"
+              aria-label="Neste dag"
+            >›</button>
+          </div>
+        )}
+
+        {tab === 'total' && (
+          <p className="text-sm text-ink-soft px-1">{subtitle}</p>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-start">
+        {/* Hero */}
+        <div className="space-y-4">
+          {tab === 'month' && currentMonth ? (
+            <MonthHero result={currentMonth} />
+          ) : (
+            <LeaderHero
+              heading={tab === 'total' ? 'Leder konkurransen' : tab === 'week' ? 'Ukens leder' : 'Dagens beste'}
+              winners={rows.filter((r) => r.rank === 1 && r.minutes > 0).map((r) => r.name)}
+              minutes={leaderMinutes}
+              chaser={rows.find((r) => r.rank > 1)}
+              periodTotal={periodTotal}
+            />
+          )}
+
+          {tab === 'month' && completedMonths.length > 0 && (
+            <Card>
+              <SectionTitle>Månedsmestere</SectionTitle>
+              <ul className="divide-y divide-line">
+                {completedMonths.map((m) => (
+                  <li key={m.key} className="flex items-center justify-between py-2.5 gap-3">
+                    <span className="text-sm text-ink-soft">{m.name}</span>
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-ink text-right">
+                      <TrophyIcon className="w-4 h-4 text-gold shrink-0" />
+                      {m.winners.map((w) => firstName(w.name)).join(' og ')}
+                      <span className="num text-ink-soft font-normal">{m.topMinutes} min</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {tally.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-line flex flex-wrap gap-2">
+                  {tally.map((t) => (
+                    <span key={t.id} className="text-xs font-semibold bg-paper rounded-full px-3 py-1.5 text-ink">
+                      {firstName(t.name)} {'🏆'.repeat(Math.min(t.n, 5))}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* Stilling */}
+        <div className="space-y-4">
+          <Card className="!p-2 sm:!p-3">
+            {rows.length === 0 ? (
+              <p className="p-4 text-sm text-ink-soft">Ingen deltakere å vise ennå.</p>
+            ) : (
+              <ol>
+                {rows.map((r) => {
+                  const isMe = r.userId === meId
+                  const last = lastRegByUserId.get(r.userId)
+                  const pct = leaderMinutes > 0 ? Math.max(2, Math.round((r.minutes / leaderMinutes) * 100)) : 0
+                  const monthWins = wins.get(r.userId) || 0
+                  return (
+                    <li
+                      key={r.userId}
+                      className={`rounded-2xl px-2.5 sm:px-3 py-3 ${isMe ? 'bg-pulse/[0.07]' : ''}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 text-center font-display font-bold text-ink num text-[15px]">
+                          {medal(r.rank)}
+                        </div>
+                        <Avatar name={r.name} size={38} highlight={isMe} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-ink truncate leading-tight">
+                            {r.name}
+                            {isMe && <span className="ml-1.5 text-[11px] font-bold text-pulse-dark">deg</span>}
+                            {monthWins > 0 && (
+                              <span className="ml-1.5 text-xs" title={`${monthWins} månedsseier${monthWins > 1 ? 'e' : ''}`}>
+                                {'🏆'.repeat(Math.min(monthWins, 5))}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-ink-soft truncate">{lastSeen(last, today)}</p>
+                        </div>
+                        <Delta value={changes.get(r.userId)} />
+                        <div className="text-right w-16">
+                          <p className="font-display text-xl font-bold text-ink num leading-none">{r.minutes}</p>
+                          <p className="text-[11px] text-ink-soft">min</p>
+                        </div>
+                      </div>
+                      <div className="mt-2.5 ml-10 h-1.5 rounded-full bg-line overflow-hidden" aria-hidden="true">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, background: isMe ? '#FF4B3E' : '#9CC3F0' }}
+                        />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+          </Card>
+
+          {recent.length > 0 && (
+            <Card>
+              <SectionTitle aside="Nyeste først">Siste oppdateringer</SectionTitle>
+              <ul className="divide-y divide-line">
+                {recent.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between py-2.5 gap-3 text-sm">
+                    <span className="min-w-0 truncate">
+                      <span className="font-semibold text-ink">{firstName(r.name)}</span>
+                      <span className="text-ink-soft"> la inn {r.minutes} min for {shortDate(r.date)}</span>
+                    </span>
+                    <span className="text-xs text-ink-soft shrink-0 num">
+                      {format(new Date(r.stamp), 'd. MMM HH:mm', { locale: nb })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- Hero-kort ---------- */
+
+function PulseBackdrop() {
+  return (
+    <svg
+      className="absolute -right-2 bottom-3 w-[70%] opacity-[0.18] pointer-events-none"
+      viewBox="0 0 300 60" fill="none" aria-hidden="true"
+    >
+      <path
+        className="pulse-line"
+        d="M0 34h70l16-26 22 50 20-38 12 14h160"
+        stroke="#FF4B3E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function MonthHero({ result }: { result: MonthResult }) {
+  const { winners, topMinutes, runnerUpMinutes, rows } = result
+  const names = winners.map((w) => w.name).join(' og ')
+  const tie = winners.length > 1
+  const chaser = rows.find((r) => r.rank > 1)
+  const margin = topMinutes - runnerUpMinutes
+  const elapsed = result.daysTotal - result.daysLeft
+  const pct = result.future ? 0 : Math.min(100, Math.round((elapsed / result.daysTotal) * 100))
+
+  let heading = ''
+  if (result.future) heading = `${result.name} har ikke startet`
+  else if (result.completed) heading = tie ? `Delt månedsseier i ${result.name.toLowerCase()}` : `Månedsvinner i ${result.name.toLowerCase()}`
+  else heading = tie ? 'Delt ledelse akkurat nå' : `Leder ${result.name.toLowerCase()}`
+
+  return (
+    <section className="relative overflow-hidden rounded-3xl bg-ink text-white p-6 shadow-lift">
+      <PulseBackdrop />
+      <div className="relative">
+        <div className="flex items-center gap-2 text-sm text-white/70">
+          <TrophyIcon className="w-5 h-5 text-gold" />
+          {heading}
+        </div>
+
+        {result.future ? (
+          <p className="font-display text-3xl font-bold mt-3 leading-tight">Starter {shortDate(result.from)}</p>
+        ) : winners.length === 0 ? (
+          <>
+            <p className="font-display text-3xl font-bold mt-3 leading-tight">Ingen minutter enda</p>
+            <p className="text-sm text-white/70 mt-2">Den første som registrerer tar ledelsen.</p>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-[2rem] font-extrabold mt-3 leading-[1.1] break-words">{names}</p>
+            <p className="mt-2 text-white/80">
+              <span className="font-display text-2xl font-bold num text-white">{topMinutes}</span> minutter
+              {!tie && chaser && margin > 0 && (
+                <span> · {margin} foran {firstName(chaser.name)}</span>
+              )}
+              {tie && <span> · like mange minutter</span>}
+            </p>
+          </>
+        )}
+
+        {!result.future && (
+          <div className="mt-5">
+            <div className="h-1.5 rounded-full bg-white/15 overflow-hidden" aria-hidden="true">
+              <div className="h-full rounded-full bg-pulse" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-xs text-white/60 mt-2">
+              {result.completed
+                ? `Avsluttet ${shortDate(result.to)} · ${result.totalMinutes} minutter til sammen`
+                : `${result.daysLeft} ${result.daysLeft === 1 ? 'dag' : 'dager'} igjen · ${result.totalMinutes} minutter til sammen`}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function LeaderHero({
+  heading, winners, minutes, chaser, periodTotal,
+}: {
+  heading: string
+  winners: string[]
+  minutes: number
+  chaser: { name: string; minutes: number } | undefined
+  periodTotal: number
+}) {
+  const margin = chaser ? minutes - chaser.minutes : 0
+  return (
+    <section className="relative overflow-hidden rounded-3xl bg-ink text-white p-6 shadow-lift">
+      <PulseBackdrop />
+      <div className="relative">
+        <p className="text-sm text-white/70">{heading}</p>
+        {winners.length === 0 ? (
+          <p className="font-display text-2xl font-bold mt-3">Ingen registreringer</p>
+        ) : (
+          <>
+            <p className="font-display text-[2rem] font-extrabold mt-3 leading-[1.1] break-words">
+              {winners.join(' og ')}
+            </p>
+            <p className="mt-2 text-white/80">
+              <span className="font-display text-2xl font-bold num text-white">{minutes}</span> minutter
+              {winners.length === 1 && chaser && margin > 0 && <span> · {margin} foran {firstName(chaser.name)}</span>}
+            </p>
+          </>
+        )}
+        <p className="text-xs text-white/60 mt-4">{periodTotal} minutter til sammen i perioden</p>
+      </div>
+    </section>
+  )
 }

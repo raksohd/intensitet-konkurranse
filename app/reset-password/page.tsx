@@ -2,36 +2,47 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
- 
+import { PulseMark } from '@/components/ui'
+
 export default function ResetPasswordPage() {
-  const [password, setPassword] = useState('')
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const router = useRouter()
-  const supabase = createClient()
- 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (password.length < 6) { setError('Passordet må være minst 6 tegn.'); return }
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) { setError(error.message); return }
-    setMessage('Passord oppdatert! Du blir sendt videre...')
-    setTimeout(() => router.push('/dashboard'), 1500)
-  }
- 
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow p-6">
-        <h1 className="text-lg font-bold mb-4">Velg nytt passord</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-            placeholder="Nytt passord" className="w-full border rounded-lg px-3 py-2" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {message && <p className="text-sm text-green-700">{message}</p>}
-          <button className="w-full bg-indigo-600 text-white rounded-lg py-2 font-medium">Lagre</button>
-        </form>
-      </div>
-    </div>
-  )
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (password.length < 6) { setError('Passordet må være minst 6 tegn.'); return }
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) { setError(error.message); return }
+    setMessage('Passord oppdatert! Du blir sendt videre...')
+    setTimeout(() => router.push('/dashboard'), 1500)
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-ink">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8 text-white">
+          <span className="inline-flex w-14 h-14 rounded-2xl bg-white/10 text-pulse items-center justify-center">
+            <PulseMark className="w-9 h-9" />
+          </span>
+          <h1 className="font-display text-2xl font-extrabold mt-4">Velg nytt passord</h1>
+        </div>
+        <div className="bg-white rounded-3xl shadow-lift p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Nytt passord" aria-label="Nytt passord" autoComplete="new-password"
+              className="w-full bg-paper rounded-xl px-4 py-3 border border-transparent focus:border-pulse outline-none"
+            />
+            {error && <p className="text-sm text-pulse-dark font-medium" role="alert">{error}</p>}
+            {message && <p className="text-sm text-emerald-700 font-medium" role="status">{message}</p>}
+            <button className="w-full bg-pulse text-white rounded-2xl py-3.5 font-bold hover:bg-pulse-dark">Lagre</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
 }

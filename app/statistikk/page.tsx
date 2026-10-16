@@ -1,105 +1,296 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Registration } from '@/lib/types'
-import { COMPETITION_START } from '@/lib/constants'
-import { toISO } from '@/lib/dates'
-import { eachDayOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek, parseISO, format, isAfter } from 'date-fns'
+import { Profile, Registration } from '@/lib/types'
+import { buildLeaderboard } from '@/lib/leaderboard'
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  WEEKLY_GOAL, cumulativeRace, computeRecords, dailySeriesWithAverage, familyHighlights,
+  firstName, getMonthResults, shortDate, weekdayAverages, weeklySeries,
+} from '@/lib/stats'
+import { Card, Heatmap, Loading, PageTitle, SectionTitle, Segmented } from '@/components/ui'
+import {
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis,
+  CartesianGrid, Tooltip, ReferenceLine, Cell,
 } from 'recharts'
- 
+
+type View = 'me' | 'family'
+
+const LINE_COLORS = ['#12203A', '#3FC6A0', '#FFB627', '#7C6CF0', '#F472B6', '#2B9BD6', '#8A6B4E', '#6B7A90', '#C2185B', '#00897B']
+const tick = { fontSize: 11, fill: '#4A5873' }
+
+function Fact({ label, value, unit, sub }: { label: string; value: string | number; unit?: string; sub?: string }) {
+  return (
+    <div className="bg-card rounded-2xl shadow-soft p-4">
+      <p className="text-xs text-ink-soft">{label}</p>
+      <p className="mt-1.5 flex items-baseline gap-1">
+        <span className="font-display text-2xl font-bold num text-ink">{value}</span>
+        {unit && <span className="text-xs text-ink-soft">{unit}</span>}
+      </p>
+      {sub && <p className="text-xs text-ink-soft mt-0.5 truncate">{sub}</p>}
+    </div>
+  )
+}
+
 export default function StatistikkPage() {
-  const supabase = createClient()
-  const [regs, setRegs] = useState<Registration[]>([])
-  const [loading, setLoading] = useState(true)
- 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase.from('registrations').select('*').eq('user_id', user.id)
-      setRegs(data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
- 
-  const dailyData = useMemo(() => {
-    if (regs.length === 0) return []
-    const byDate = new Map(regs.map((r) => [r.date, r.minutes]))
-    const lastDate = [...regs].map((r) => r.date).sort().slice(-1)[0]
-    const start = parseISO(COMPETITION_START)
-    const end = parseISO(lastDate)
-    if (isAfter(start, end)) return []
-    return eachDayOfInterval({ start, end }).map((d) => {
-      const iso = toISO(d)
-      return { date: format(d, 'dd.MM'), minutter: byDate.get(iso) || 0 }
-    })
-  }, [regs])
- 
-  const weeklyData = useMemo(() => {
-    if (regs.length === 0) return []
-    const lastDate = [...regs].map((r) => r.date).sort().slice(-1)[0]
-    const start = parseISO(COMPETITION_START)
-    const end = parseISO(lastDate)
-    if (isAfter(start, end)) return []
-    return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 }).map((w) => {
-      const wStart = startOfWeek(w, { weekStartsOn: 1 })
-      const wEnd = endOfWeek(w, { weekStartsOn: 1 })
-      const sum = regs
-        .filter((r) => r.date >= toISO(wStart) && r.date <= toISO(wEnd))
-        .reduce((acc, r) => acc + r.minutes, 0)
-      return { uke: `${format(wStart, 'dd.MM.yy')}-${format(wEnd, 'dd.MM.yy')}`, minutter: sum }
-    })
-  }, [regs])
- 
-  if (loading) return <div className="text-center py-20 text-gray-500">Laster...</div>
- 
-  if (regs.length === 0) {
-    return (
-      <div>
-        <h1 className="text-xl font-bold mb-4">Statistikk 📊</h1>
-        <p className="text-gray-500">
-          Du har ingen registreringer enda. Statistikken vises her når du har registrert minst én økt.
-        </p>
-      </div>
-    )
-  }
- 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">Statistikk 📊</h1>
- 
-      <div className="bg-white rounded-2xl shadow p-4">
-        <h2 className="font-semibold mb-4">Daglige minutter</h2>
-        <div style={{ width: '100%', height: 260 }}>
-          <ResponsiveContainer>
-            <LineChart data={dailyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="minutter" stroke="#4f46e5" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
- 
-      <div className="bg-white rounded-2xl shadow p-4">
-        <h2 className="font-semibold mb-4">Ukentlige minutter</h2>
-        <div style={{ width: '100%', height: 260 }}>
-          <ResponsiveContainer>
-            <BarChart data={weeklyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="uke" tick={{ fontSize: 9 }} angle={-35} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="minutter" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  )
+  const supabase = createClient()
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [regs, setRegs] = useState<Registration[]>([])
+  const [meId, setMeId] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<View>('me')
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setMeId(user.id)
+      const [{ data: p }, { data: r }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('is_active', true),
+        supabase.from('registrations').select('*'),
+      ])
+      setProfiles(p || [])
+      setRegs(r || [])
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const myRegs = useMemo(() => regs.filter((r) => r.user_id === meId), [regs, meId])
+  const records = useMemo(() => computeRecords(myRegs), [myRegs])
+  const daily = useMemo(() => dailySeriesWithAverage(myRegs), [myRegs])
+  const weekly = useMemo(() => weeklySeries(myRegs), [myRegs])
+  const weekdays = useMemo(() => weekdayAverages(myRegs), [myRegs])
+
+  const race = useMemo(() => cumulativeRace(profiles, regs), [profiles, regs])
+  const highlights = useMemo(() => familyHighlights(profiles, regs), [profiles, regs])
+  const months = useMemo(() => getMonthResults(profiles, regs), [profiles, regs])
+  const standing = useMemo(() => buildLeaderboard(profiles, regs), [profiles, regs])
+
+  if (loading) return <Loading />
+
+  const firstNames = new Map<string, string>()
+  const counts = new Map<string, number>()
+  standing.forEach((r) => counts.set(firstName(r.name), (counts.get(firstName(r.name)) || 0) + 1))
+  standing.forEach((r) => {
+    const fn = firstName(r.name)
+    firstNames.set(r.userId, (counts.get(fn) || 0) > 1 ? r.name : fn)
+  })
+
+  const colorFor = (userId: string, idx: number) => (userId === meId ? '#FF4B3E' : LINE_COLORS[idx % LINE_COLORS.length])
+  const shownMonths = months.filter((m) => !m.future)
+
+  return (
+    <div>
+      <PageTitle title="Statistikk" sub="Tallene bak konkurransen" />
+      <Segmented
+        options={[{ key: 'me' as View, label: 'Meg' }, { key: 'family' as View, label: 'Familien' }]}
+        value={view}
+        onChange={setView}
+      />
+
+      {view === 'me' && (
+        <div className="mt-4 space-y-4">
+          {myRegs.length === 0 ? (
+            <Card>
+              <p className="text-ink-soft">
+                Du har ingen registreringer ennå. Statistikken din dukker opp her når du har registrert minst én økt.
+              </p>
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Fact label="Totalt" value={records.total} unit="min" sub={`${records.activeDays} aktive dager`} />
+                <Fact
+                  label="Beste dag"
+                  value={records.bestDay ? records.bestDay.minutes : 0}
+                  unit="min"
+                  sub={records.bestDay ? shortDate(records.bestDay.date) : undefined}
+                />
+                <Fact
+                  label="Beste uke"
+                  value={records.bestWeek ? records.bestWeek.minutes : 0}
+                  unit="min"
+                  sub={records.bestWeek ? `Uken fra ${shortDate(records.bestWeek.start)}` : undefined}
+                />
+                <Fact label="Snitt på aktive dager" value={records.avgPerActiveDay} unit="min" />
+                <Fact label="Lengste rekke" value={records.longestStreak} unit={records.longestStreak === 1 ? 'dag' : 'dager'} sub="Dager på rad med registrering" />
+                <Fact label={`Uker med ${WEEKLY_GOAL}+ min`} value={records.weeksAtGoal} unit={records.weeksAtGoal === 1 ? 'uke' : 'uker'} />
+              </div>
+
+              <Card>
+                <SectionTitle aside="Linjen er snitt for 7 dager">Minutter per dag</SectionTitle>
+                <div style={{ width: '100%', height: 240 }}>
+                  <ResponsiveContainer>
+                    <ComposedChart data={daily} margin={{ top: 5, right: 8, left: -22, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E3E8F0" vertical={false} />
+                      <XAxis dataKey="date" tick={tick} interval="preserveStartEnd" minTickGap={28} />
+                      <YAxis tick={tick} />
+                      <Tooltip />
+                      <Bar dataKey="minutter" name="Minutter" fill="#9CC3F0" radius={[3, 3, 0, 0]} />
+                      <Line type="monotone" dataKey="snitt7" name="Snitt 7 dager" stroke="#FF4B3E" strokeWidth={2.5} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card>
+                <SectionTitle aside={`Stiplet linje: ${WEEKLY_GOAL} min`}>Minutter per uke</SectionTitle>
+                <div style={{ width: '100%', height: 240 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={weekly} margin={{ top: 5, right: 8, left: -22, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E3E8F0" vertical={false} />
+                      <XAxis dataKey="uke" tick={tick} interval="preserveStartEnd" minTickGap={20} />
+                      <YAxis tick={tick} />
+                      <Tooltip labelFormatter={(l: any) => `Uke fra ${l}`} />
+                      <ReferenceLine y={WEEKLY_GOAL} stroke="#12203A" strokeDasharray="4 4" />
+                      <Bar dataKey="minutter" name="Minutter" radius={[5, 5, 0, 0]}>
+                        {weekly.map((w, i) => (
+                          <Cell key={i} fill={w.minutter >= WEEKLY_GOAL ? '#3FC6A0' : '#9CC3F0'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <SectionTitle aside="Snitt per registrert dag">Din beste ukedag</SectionTitle>
+                  <div style={{ width: '100%', height: 200 }}>
+                    <ResponsiveContainer>
+                      <BarChart data={weekdays} margin={{ top: 5, right: 8, left: -22, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E3E8F0" vertical={false} />
+                        <XAxis dataKey="dag" tick={tick} />
+                        <YAxis tick={tick} />
+                        <Tooltip />
+                        <Bar dataKey="snitt" name="Snitt (min)" fill="#FFB627" radius={[5, 5, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card>
+                  <SectionTitle>Aktivitetskalender</SectionTitle>
+                  <Heatmap regs={myRegs} />
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {view === 'family' && (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Fact label="Samlet i familien" value={highlights.total} unit="min" sub={`Ca. ${Math.round(highlights.total / 60)} timer`} />
+            <Fact
+              label="Beste enkeltdag"
+              value={highlights.bestDay ? highlights.bestDay.minutes : 0}
+              unit="min"
+              sub={highlights.bestDay ? `${firstName(highlights.bestDay.name)}, ${shortDate(highlights.bestDay.date)}` : undefined}
+            />
+            <Fact
+              label="Beste uke"
+              value={highlights.bestWeek ? highlights.bestWeek.minutes : 0}
+              unit="min"
+              sub={highlights.bestWeek ? `${firstName(highlights.bestWeek.name)}, uken fra ${shortDate(highlights.bestWeek.start)}` : undefined}
+            />
+            <Fact
+              label="Lengste rekke"
+              value={highlights.bestStreak ? highlights.bestStreak.days : 0}
+              unit="dager"
+              sub={highlights.bestStreak ? firstName(highlights.bestStreak.name) : undefined}
+            />
+          </div>
+
+          <Card>
+            <SectionTitle aside="Samlet antall minutter">Løpet om førsteplassen</SectionTitle>
+            {race.length === 0 ? (
+              <p className="text-sm text-ink-soft">Konkurransen har ikke startet ennå.</p>
+            ) : (
+              <>
+                <div style={{ width: '100%', height: 280 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={race} margin={{ top: 5, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E3E8F0" vertical={false} />
+                      <XAxis dataKey="date" tick={tick} interval="preserveStartEnd" minTickGap={28} />
+                      <YAxis tick={tick} />
+                      <Tooltip
+                        formatter={(value: any, name: any) => [`${value} min`, firstNames.get(String(name)) || String(name)]}
+                      />
+                      {standing.map((r, i) => (
+                        <Line
+                          key={r.userId}
+                          type="monotone"
+                          dataKey={r.userId}
+                          name={r.userId}
+                          stroke={colorFor(r.userId, i)}
+                          strokeWidth={r.userId === meId ? 3 : 2}
+                          dot={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
+                  {standing.map((r, i) => (
+                    <li key={r.userId} className="flex items-center gap-1.5 text-xs text-ink-soft">
+                      <span className="w-3 h-1.5 rounded-full" style={{ background: colorFor(r.userId, i) }} />
+                      {firstNames.get(r.userId)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Card>
+
+          <Card>
+            <SectionTitle aside="Gull = månedsvinner">Minutter per måned</SectionTitle>
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-sm min-w-[360px]">
+                <thead>
+                  <tr className="text-left text-xs text-ink-soft">
+                    <th className="px-1 py-2 font-medium">Navn</th>
+                    {shownMonths.map((m) => (
+                      <th key={m.key} className="px-1 py-2 font-medium text-right">{m.name.slice(0, 3)}</th>
+                    ))}
+                    <th className="px-1 py-2 font-medium text-right">Totalt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {standing.map((r) => (
+                    <tr key={r.userId} className={`border-t border-line ${r.userId === meId ? 'bg-pulse/[0.06]' : ''}`}>
+                      <td className="px-1 py-2 font-semibold text-ink whitespace-nowrap">{firstNames.get(r.userId)}</td>
+                      {shownMonths.map((m) => {
+                        const cell = m.rows.find((x) => x.userId === r.userId)
+                        const won = !!cell && cell.rank === 1 && cell.minutes > 0
+                        return (
+                          <td key={m.key} className="px-1 py-1.5 text-right">
+                            <span
+                              className={`inline-block num rounded-lg px-2 py-0.5 ${
+                                won ? (m.completed ? 'bg-gold text-ink font-bold' : 'ring-2 ring-gold font-bold') : 'text-ink-soft'
+                              }`}
+                            >
+                              {cell ? cell.minutes : 0}
+                            </span>
+                          </td>
+                        )
+                      })}
+                      <td className="px-1 py-2 text-right font-display font-bold num">{r.minutes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {highlights.mostActive && (
+            <p className="text-sm text-ink-soft px-1">
+              Mest jevn: {firstName(highlights.mostActive.name)} med {highlights.mostActive.days} aktive dager.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }

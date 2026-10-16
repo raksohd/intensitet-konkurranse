@@ -2,90 +2,101 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
- 
+import { PulseMark } from '@/components/ui'
+
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [resetMode, setResetMode] = useState(false)
-  const [resetSent, setResetSent] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
- 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) { setError('Feil e-post eller passord.'); return }
-    router.push('/dashboard')
-    router.refresh()
-  }
- 
-  const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    if (error) { setError(error.message); return }
-    setResetSent(true)
-  }
- 
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow p-6">
-        <h1 className="text-xl font-bold text-center mb-1">Intensitetsminutter 2026</h1>
-        <p className="text-sm text-gray-500 text-center mb-6">Logg inn for å registrere og se leaderboard</p>
- 
-        {!resetMode ? (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">E-post</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Passord</label>
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full border rounded-lg px-3 py-2" />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button disabled={loading}
-              className="w-full bg-indigo-600 text-white rounded-lg py-2 font-medium hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? 'Logger inn...' : 'Logg inn'}
-            </button>
-            <button type="button" onClick={() => setResetMode(true)}
-              className="w-full text-sm text-indigo-600 hover:underline">
-              Glemt passord?
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleReset} className="space-y-4">
-            {resetSent ? (
-              <p className="text-sm text-green-700">Sjekk e-posten din for lenke til å tilbakestille passord.</p>
-            ) : (
-              <>
-                <div>
-                  <label className="text-sm font-medium">E-post</label>
-                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="mt-1 w-full border rounded-lg px-3 py-2" />
-                </div>
-                {error && <p className="text-sm text-red-600">{error}</p>}
-                <button className="w-full bg-indigo-600 text-white rounded-lg py-2 font-medium hover:bg-indigo-700">
-                  Send lenke
-                </button>
-              </>
-            )}
-            <button type="button" onClick={() => { setResetMode(false); setResetSent(false) }}
-              className="w-full text-sm text-gray-500 hover:underline">
-              Tilbake til innlogging
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  )
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [resetMode, setResetMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    setLoading(false)
+    if (error) { setError('Feil e-post eller passord.'); return }
+    router.push('/dashboard')
+    router.refresh()
+  }
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) { setError(error.message); return }
+    setResetSent(true)
+  }
+
+  const input =
+    'mt-1.5 w-full bg-paper rounded-xl px-4 py-3 border border-transparent focus:border-pulse outline-none'
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-ink">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8 text-white">
+          <span className="inline-flex w-14 h-14 rounded-2xl bg-white/10 text-pulse items-center justify-center">
+            <PulseMark className="w-9 h-9" />
+          </span>
+          <h1 className="font-display text-3xl font-extrabold mt-4">Intensitetsminutter 2026</h1>
+          <p className="text-sm text-white/70 mt-1.5">Logg inn for å registrere og se leaderboard</p>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-lift p-6">
+          {!resetMode ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label htmlFor="email" className="text-sm font-semibold text-ink">E-post</label>
+                <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email" className={input} />
+              </div>
+              <div>
+                <label htmlFor="password" className="text-sm font-semibold text-ink">Passord</label>
+                <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password" className={input} />
+              </div>
+              {error && <p className="text-sm text-pulse-dark font-medium" role="alert">{error}</p>}
+              <button disabled={loading}
+                className="w-full bg-pulse text-white rounded-2xl py-3.5 font-bold hover:bg-pulse-dark disabled:opacity-50">
+                {loading ? 'Logger inn…' : 'Logg inn'}
+              </button>
+              <button type="button" onClick={() => setResetMode(true)}
+                className="w-full text-sm text-ink-soft font-semibold hover:text-ink">
+                Glemt passord?
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleReset} className="space-y-4">
+              {resetSent ? (
+                <p className="text-sm text-emerald-700 font-medium">Sjekk e-posten din for lenke til å tilbakestille passord.</p>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="reset-email" className="text-sm font-semibold text-ink">E-post</label>
+                    <input id="reset-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email" className={input} />
+                  </div>
+                  {error && <p className="text-sm text-pulse-dark font-medium" role="alert">{error}</p>}
+                  <button className="w-full bg-pulse text-white rounded-2xl py-3.5 font-bold hover:bg-pulse-dark">
+                    Send lenke
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => { setResetMode(false); setResetSent(false) }}
+                className="w-full text-sm text-ink-soft font-semibold hover:text-ink">
+                Tilbake til innlogging
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }

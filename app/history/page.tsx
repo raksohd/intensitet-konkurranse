@@ -1,94 +1,116 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Registration } from '@/lib/types'
-import { formatNorwegian } from '@/lib/dates'
- 
+import { format, parseISO } from 'date-fns'
+import { nb } from 'date-fns/locale'
+import { Card, Loading, PageTitle } from '@/components/ui'
+import { minutesColor, monthLabel } from '@/lib/stats'
+
 export default function HistoryPage() {
-  const supabase = createClient()
-  const [regs, setRegs] = useState<Registration[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sortDesc, setSortDesc] = useState(true)
- 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase.from('registrations').select('*').eq('user_id', user.id)
-      setRegs(data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
- 
-  const sorted = [...regs].sort((a, b) => sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
-  const total = regs.reduce((sum, r) => sum + r.minutes, 0)
- 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Min historikk</h1>
-        <span className="text-sm text-gray-500">Totalt: {total} min</span>
-      </div>
- 
-      {loading ? (
-        <p className="text-gray-500">Laster...</p>
-      ) : regs.length === 0 ? (
-        <p className="text-gray-500">
-          Du har ingen registreringer enda.{' '}
-          <Link href="/register" className="text-indigo-600 hover:underline">Registrer din første økt</Link>
-        </p>
-      ) : (
-        <>
-          <button
-            onClick={() => setSortDesc(!sortDesc)}
-            className="mb-3 text-sm text-gray-500 hover:text-gray-700"
-          >
-            Sorter etter dato {sortDesc ? '↓ (nyest først)' : '↑ (eldst først)'}
-          </button>
- 
-          {/* Mobilvisning: kort-liste */}
-          <div className="sm:hidden space-y-2">
-            {sorted.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{formatNorwegian(r.date)}</p>
-                  <p className="text-sm text-gray-500">{r.minutes} minutter</p>
-                </div>
-                <Link href={`/register?date=${r.date}`}
-                  className="text-indigo-600 text-sm font-medium bg-indigo-50 px-3 py-1.5 rounded-lg">
-                  Rediger
-                </Link>
-              </div>
-            ))}
-          </div>
- 
-          {/* Desktop-visning: tabell */}
-          <div className="hidden sm:block bg-white rounded-2xl shadow overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-left">
-                <tr>
-                  <th className="px-4 py-2">Dato</th>
-                  <th className="px-4 py-2">Minutter</th>
-                  <th className="px-4 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((r) => (
-                  <tr key={r.id} className="border-t">
-                    <td className="px-4 py-2">{formatNorwegian(r.date)}</td>
-                    <td className="px-4 py-2">{r.minutes} min</td>
-                    <td className="px-4 py-2 text-right">
-                      <Link href={`/register?date=${r.date}`} className="text-indigo-600 hover:underline">Rediger</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  )
+  const supabase = createClient()
+  const [regs, setRegs] = useState<Registration[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sortDesc, setSortDesc] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase.from('registrations').select('*').eq('user_id', user.id)
+      setRegs(data || [])
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const sorted = useMemo(
+    () => [...regs].sort((a, b) => (sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))),
+    [regs, sortDesc]
+  )
+  const total = regs.reduce((sum, r) => sum + r.minutes, 0)
+
+  // Grupper per måned i samme rekkefølge som sorteringen
+  const groups = useMemo(() => {
+    const order: string[] = []
+    const map = new Map<string, Registration[]>()
+    for (const r of sorted) {
+      const key = r.date.slice(0, 7)
+      if (!map.has(key)) { map.set(key, []); order.push(key) }
+      map.get(key)!.push(r)
+    }
+    return order.map((key) => {
+      const items = map.get(key) || []
+      return {
+        key,
+        label: monthLabel(parseISO(`${key}-01`)),
+        sum: items.reduce((s, r) => s + r.minutes, 0),
+        items,
+      }
+    })
+  }, [sorted])
+
+  if (loading) return <Loading />
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <PageTitle
+        title="Min historikk"
+        sub={regs.length > 0 ? `${regs.length} registreringer · ${total} min totalt` : undefined}
+        right={
+          regs.length > 0 ? (
+            <button
+              onClick={() => setSortDesc(!sortDesc)}
+              className="text-sm font-semibold text-ink-soft bg-white shadow-soft rounded-xl px-3 py-2"
+            >
+              {sortDesc ? 'Nyest først' : 'Eldst først'}
+            </button>
+          ) : undefined
+        }
+      />
+
+      {regs.length === 0 ? (
+        <Card>
+          <p className="text-ink-soft">
+            Du har ingen registreringer ennå.{' '}
+            <Link href="/register" className="text-pulse-dark font-semibold hover:underline">Registrer din første økt</Link>
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-5">
+          {groups.map((g) => (
+            <section key={g.key}>
+              <div className="flex items-baseline justify-between px-1 mb-2">
+                <h2 className="font-display text-lg font-semibold">{g.label}</h2>
+                <span className="text-sm text-ink-soft num">{g.sum} min</span>
+              </div>
+              <Card className="!p-1.5">
+                <ul className="divide-y divide-line">
+                  {g.items.map((r) => (
+                    <li key={r.id} className="flex items-center gap-3 px-3 py-3">
+                      <span className="w-1.5 self-stretch rounded-full" style={{ background: minutesColor(r.minutes) }} aria-hidden="true" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-ink capitalize">{format(parseISO(r.date), 'EEEE d. MMMM', { locale: nb })}</p>
+                      </div>
+                      <p className="num text-ink">
+                        <span className="font-display text-lg font-bold">{r.minutes}</span>
+                        <span className="text-xs text-ink-soft"> min</span>
+                      </p>
+                      <Link
+                        href={`/register?date=${r.date}`}
+                        className="text-sm font-semibold text-pulse-dark bg-pulse/10 rounded-xl px-3 py-1.5"
+                      >
+                        Rediger
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }

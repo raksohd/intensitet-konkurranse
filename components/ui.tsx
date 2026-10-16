@@ -1,0 +1,226 @@
+'use client'
+import { ReactNode } from 'react'
+import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns'
+import { nb } from 'date-fns/locale'
+import { COMPETITION_START, COMPETITION_END } from '@/lib/constants'
+import { toISO, todayISO } from '@/lib/dates'
+import { HEAT_LEGEND, minutesColor } from '@/lib/stats'
+
+/* ---------- Små byggeklosser ---------- */
+
+export function Loading({ label = 'Henter tall…' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-ink-soft" role="status">
+      <svg width="56" height="24" viewBox="0 0 56 24" fill="none" aria-hidden="true">
+        <path className="pulse-line" d="M1 13h12l4-9 6 17 5-12 3 4h24" stroke="#FF4B3E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <p className="mt-3 text-sm">{label}</p>
+    </div>
+  )
+}
+
+export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <section className={`bg-card rounded-3xl shadow-soft p-5 ${className}`}>{children}</section>
+}
+
+export function PageTitle({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
+  return (
+    <div className="flex items-end justify-between gap-3 mb-5">
+      <div className="min-w-0">
+        <h1 className="font-display text-[1.75rem] leading-tight font-bold text-ink">{title}</h1>
+        {sub && <p className="text-sm text-ink-soft mt-0.5">{sub}</p>}
+      </div>
+      {right}
+    </div>
+  )
+}
+
+export function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between mb-3">
+      <h2 className="font-display text-lg font-semibold text-ink">{children}</h2>
+      {aside && <span className="text-xs text-ink-soft">{aside}</span>}
+    </div>
+  )
+}
+
+export function Segmented<T extends string>({
+  options, value, onChange,
+}: {
+  options: { key: T; label: string }[]
+  value: T
+  onChange: (k: T) => void
+}) {
+  return (
+    <div className="flex p-1 bg-white rounded-2xl shadow-soft" role="tablist">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          role="tab"
+          aria-selected={value === o.key}
+          onClick={() => onChange(o.key)}
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
+            value === o.key ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function Avatar({ name, size = 36, highlight = false }: { name: string; size?: number; highlight?: boolean }) {
+  const initials = name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase() || '?'
+  return (
+    <div
+      className={`shrink-0 rounded-full flex items-center justify-center font-display font-bold ${
+        highlight ? 'bg-pulse text-white' : 'bg-zone-1 text-ink'
+      }`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      aria-hidden="true"
+    >
+      {initials}
+    </div>
+  )
+}
+
+export function Delta({ value }: { value: number | undefined }) {
+  if (!value) return <span className="w-7" aria-hidden="true" />
+  const up = value > 0
+  return (
+    <span
+      className={`w-7 text-[11px] font-bold num text-center ${up ? 'text-emerald-600' : 'text-pulse-dark'}`}
+      title={up ? `Opp ${value} siste døgn` : `Ned ${Math.abs(value)} siste døgn`}
+    >
+      {up ? '▲' : '▼'}{Math.abs(value)}
+    </span>
+  )
+}
+
+/* ---------- Fremdriftsring ---------- */
+
+export function Ring({
+  value, max, size = 120, stroke = 12, children,
+}: {
+  value: number
+  max: number
+  size?: number
+  stroke?: number
+  children?: ReactNode
+}) {
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const pct = Math.max(0, Math.min(1, max > 0 ? value / max : 0))
+  const done = value >= max
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#E3E8F0" strokeWidth={stroke} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={done ? '#3FC6A0' : '#FF4B3E'} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          style={{ transition: 'stroke-dashoffset .6s ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div>
+    </div>
+  )
+}
+
+/* ---------- Aktivitetskalender ---------- */
+
+export function Heatmap({ regs }: { regs: { date: string; minutes: number }[] }) {
+  const map = new Map(regs.map((r) => [r.date, r.minutes]))
+  const today = todayISO()
+  const startD = startOfWeek(parseISO(COMPETITION_START), { weekStartsOn: 1 })
+  const lastISO = today > COMPETITION_END ? COMPETITION_END : today
+  const endD = endOfWeek(parseISO(lastISO < COMPETITION_START ? COMPETITION_START : lastISO), { weekStartsOn: 1 })
+
+  const weeks: Date[] = []
+  for (let d = startD; d <= endD; d = addDays(d, 7)) weeks.push(d)
+
+  const monthLabels = weeks.map((w, i) => {
+    const sunday = addDays(w, 6)
+    const monthOfThursday = format(addDays(w, 3), 'LLL', { locale: nb })
+    const prev = i > 0 ? format(addDays(weeks[i - 1], 3), 'LLL', { locale: nb }) : ''
+    return i === 0 || monthOfThursday !== prev ? { text: monthOfThursday, key: toISO(sunday) } : null
+  })
+
+  return (
+    <div>
+      <div className="grid gap-[3px] mb-1" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+        {monthLabels.map((m, i) => (
+          <div key={i} className="text-[10px] text-ink-soft leading-none h-3 whitespace-nowrap overflow-visible">
+            {m ? m.text : ''}
+          </div>
+        ))}
+      </div>
+      <div
+        className="grid gap-[3px]"
+        style={{
+          gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))`,
+          gridTemplateRows: 'repeat(7, auto)',
+          gridAutoFlow: 'column',
+        }}
+        role="img"
+        aria-label="Aktivitetskalender: farge viser intensitetsminutter per dag"
+      >
+        {weeks.flatMap((w) =>
+          Array.from({ length: 7 }, (_, i) => {
+            const iso = toISO(addDays(w, i))
+            const outside = iso < COMPETITION_START || iso > lastISO
+            const m = map.get(iso)
+            return (
+              <div
+                key={iso}
+                title={outside ? '' : `${format(parseISO(iso), 'EEEE d. MMMM', { locale: nb })}: ${m === undefined ? 'ikke registrert' : m + ' min'}`}
+                className="aspect-square rounded-[4px]"
+                style={{ background: outside ? 'transparent' : minutesColor(m) }}
+              />
+            )
+          })
+        )}
+      </div>
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-3 text-[11px] text-ink-soft">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-[3px]" style={{ background: '#EDF0F6' }} />
+          Ikke registrert
+        </span>
+        {HEAT_LEGEND.map((l) => (
+          <span key={l.label} className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-[3px]" style={{ background: l.color }} />
+            {l.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ---------- Ikoner (enkle, ensartede) ---------- */
+
+type IconProps = { className?: string }
+const base = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+
+export const HomeIcon = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} {...base} aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg>
+)
+export const TrophyIcon = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} {...base} aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" /></svg>
+)
+export const ChartIcon = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} {...base} aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+)
+export const MoreIcon = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} {...base} aria-hidden="true"><circle cx="5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /></svg>
+)
+export const PlusIcon = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} {...base} strokeWidth={2.4} aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+)
+export const PulseMark = ({ className = 'w-6 h-6' }: IconProps) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+    <path d="M1.5 13h5l2.5-6 4 11 3-8 1.5 3h5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)

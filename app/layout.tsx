@@ -1,25 +1,34 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
- 
+
 export const metadata: Metadata = {
-  title: 'Intensitetsminutter 2026',
-  description: 'Intern konkurranse - registrer intensitetsminutter',
+  title: 'Intensitetsminutter 2026',
+  description: 'Intern konkurranse - registrer intensitetsminutter',
 }
- 
+
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#12203A',
 }
- 
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="no">
-      <body className="bg-gray-50 min-h-screen text-gray-900">
-        <Navbar />
-        <main className="max-w-4xl mx-auto px-4 py-6">{children}</main>
-      </body>
-    </html>
-  )
+  return (
+    <html lang="no">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+        />
+      </head>
+      <body className="min-h-screen bg-paper text-ink">
+        <Navbar />
+        <main className="max-w-5xl mx-auto px-4 pt-5 pb-32 md:pb-12">{children}</main>
+      </body>
+    </html>
+  )
 }

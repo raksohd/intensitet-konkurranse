@@ -1,0 +1,392 @@
+import {
+  addDays, eachDayOfInterval, eachMonthOfInterval, endOfMonth, format,
+  parseISO, startOfMonth, startOfWeek, endOfWeek,
+} from 'date-fns'
+import { nb } from 'date-fns/locale'
+import { Profile, Registration } from './types'
+import { buildLeaderboard, LeaderboardRow } from './leaderboard'
+import { COMPETITION_START, COMPETITION_END } from './constants'
+import { toISO, todayISO } from './dates'
+
+/** Anbefalt ukemål for intensitetsminutter (WHO / Garmin). */
+export const WEEKLY_GOAL = 150
+
+/* ---------- Navn og datoer ---------- */
+
+export const firstName = (full: string) => (full || '').trim().split(/\s+/)[0] || 'Ukjent'
+
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+export const monthName = (d: Date) => cap(format(d, 'LLLL', { locale: nb }))
+export const monthLabel = (d: Date) => cap(format(d, 'LLLL yyyy', { locale: nb }))
+export const shortDate = (iso: string) => format(parseISO(iso), 'd. MMM', { locale: nb })
+export const dayMonth = (iso: string) => format(parseISO(iso), 'dd.MM')
+
+export function clampToCompetition(from: string, to: string) {
+  return {
+    from: from < COMPETITION_START ? COMPETITION_START : from,
+    to: to > COMPETITION_END ? COMPETITION_END : to,
+  }
+}
+
+/* ---------- Månedsvinnere ---------- */
+
+export type MonthResult = {
+  key: string
+  name: string
+  label: string
+  from: string
+  to: string
+  completed: boolean
+  current: boolean
+  future: boolean
+  rows: LeaderboardRow[]
+  winners: LeaderboardRow[]
+  topMinutes: number
+  runnerUpMinutes: number
+  totalMinutes: number
+  daysLeft: number
+  daysTotal: number
+}
+
+export function getMonthResults(profiles: Profile[], regs: Registration[]): MonthResult[] {
+  const today = todayISO()
+  const months = eachMonthOfInterval({ start: parseISO(COMPETITION_START), end: parseISO(COMPETITION_END) })
+
+  return months.map((m) => {
+    const range = clampToCompetition(toISO(startOfMonth(m)), toISO(endOfMonth(m)))
+    const rows = buildLeaderboard(profiles, regs, range.from, range.to)
+    const topMinutes = rows.length > 0 ? rows[0].minutes : 0
+    const winners = topMinutes > 0 ? rows.filter((r) => r.rank === 1) : []
+    const runnerUp = rows.find((r) => r.rank > 1)
+    const completed = today > range.to
+    const future = today < range.from
+    const current = !completed && !future
+
+    const fromD = parseISO(range.from)
+    const toD = parseISO(range.to)
+    const daysTotal = Math.round((toD.getTime() - fromD.getTime()) / 86400000) + 1
+    const todayD = parseISO(today)
+    const daysLeft = completed
+      ? 0
+      : future
+        ? daysTotal
+        : Math.max(0, Math.round((toD.getTime() - todayD.getTime()) / 86400000))
+
+    return {
+      key: format(m, 'yyyy-MM'),
+      name: monthName(m),
+      label: monthLabel(m),
+      from: range.from,
+      to: range.to,
+      completed,
+      current,
+      future,
+      rows,
+      winners,
+      topMinutes,
+      runnerUpMinutes: runnerUp ? runnerUp.minutes : 0,
+      totalMinutes: rows.reduce((s, r) => s + r.minutes, 0),
+      daysLeft,
+      daysTotal,
+    }
+  })
+}
+
+/** Antall fullførte måneder hver bruker har vunnet. */
+export function monthWinCounts(results: MonthResult[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const r of results) {
+    if (!r.completed) continue
+    for (const w of r.winners) map.set(w.userId, (map.get(w.userId) || 0) + 1)
+  }
+  return map
+}
+
+/* ---------- Plasseringsendring siste døgn ---------- */
+
+/**
+ * Positivt tall = klatret. Sammenligner dagens stilling med stillingen
+ * uten registreringer som kom inn de siste 24 timene.
+ */
+export function rankChanges(
+  profiles: Profile[],
+  regs: Registration[],
+  from?: string,
+  to?: string
+): Map<string, number> {
+  const cutoff = Date.now() - 24 * 3600 * 1000
+  const older = regs.filter((r) => {
+    const t = new Date(r.created_at).getTime()
+    return isNaN(t) || t < cutoff
+  })
+  const result = new Map<string, number>()
+  if (older.length === regs.length || older.length === 0) return result
+
+  const nowRows = buildLeaderboard(profiles, regs, from, to)
+  const beforeRows = buildLeaderboard(profiles, older, from, to)
+  const before = new Map(beforeRows.map((r) => [r.userId, r.rank]))
+  for (const r of nowRows) {
+    const prev = before.get(r.userId)
+    if (prev !== undefined && prev !== r.rank) result.set(r.userId, prev - r.rank)
+  }
+  return result
+}
+
+export function lastRegByUser(regs: Registration[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const r of regs) {
+    const cur = map.get(r.user_id)
+    if (!cur || r.date > cur) map.set(r.user_id, r.date)
+  }
+  return map
+}
+
+/* ---------- Personlig statistikk ---------- */
+
+export function dayMap(regs: { date: string; minutes: number }[]): Map<string, number> {
+  return new Map(regs.map((r) => [r.date, r.minutes]))
+}
+
+export function weekMinutes(regs: { date: string; minutes: number }[], ref: Date = new Date()): number {
+  const from = toISO(startOfWeek(ref, { weekStartsOn: 1 }))
+  const to = toISO(endOfWeek(ref, { weekStartsOn: 1 }))
+  return regs.filter((r) => r.date >= from && r.date <= to).reduce((s, r) => s + r.minutes, 0)
+}
+
+export function longestStreak(dates: Set<string>): number {
+  const sorted = Array.from(dates).sort()
+  let best = 0
+  let run = 0
+  let prev: string | null = null
+  for (const d of sorted) {
+    if (prev && toISO(addDays(parseISO(prev), 1)) === d) run++
+    else run = 1
+    if (run > best) best = run
+    prev = d
+  }
+  return best
+}
+
+export type Records = {
+  total: number
+  loggedDays: number
+  activeDays: number
+  avgPerActiveDay: number
+  bestDay: { date: string; minutes: number } | null
+  bestWeek: { start: string; minutes: number } | null
+  weeksAtGoal: number
+  longestStreak: number
+}
+
+export function computeRecords(regs: { date: string; minutes: number }[]): Records {
+  const total = regs.reduce((s, r) => s + r.minutes, 0)
+  const active = regs.filter((r) => r.minutes > 0)
+  let bestDay: Records['bestDay'] = null
+  for (const r of regs) {
+    if (r.minutes > 0 && (!bestDay || r.minutes > bestDay.minutes)) bestDay = { date: r.date, minutes: r.minutes }
+  }
+
+  const perWeek = new Map<string, number>()
+  for (const r of regs) {
+    const key = toISO(startOfWeek(parseISO(r.date), { weekStartsOn: 1 }))
+    perWeek.set(key, (perWeek.get(key) || 0) + r.minutes)
+  }
+  let bestWeek: Records['bestWeek'] = null
+  let weeksAtGoal = 0
+  for (const [start, minutes] of Array.from(perWeek.entries())) {
+    if (minutes >= WEEKLY_GOAL) weeksAtGoal++
+    if (minutes > 0 && (!bestWeek || minutes > bestWeek.minutes)) bestWeek = { start, minutes }
+  }
+
+  return {
+    total,
+    loggedDays: regs.length,
+    activeDays: active.length,
+    avgPerActiveDay: active.length > 0 ? Math.round(total / active.length) : 0,
+    bestDay,
+    bestWeek,
+    weeksAtGoal,
+    longestStreak: longestStreak(new Set(regs.map((r) => r.date))),
+  }
+}
+
+/** Gjennomsnitt per ukedag (mandag først), basert på dager med registrering. */
+export function weekdayAverages(regs: { date: string; minutes: number }[]) {
+  const labels = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
+  const sums = [0, 0, 0, 0, 0, 0, 0]
+  const counts = [0, 0, 0, 0, 0, 0, 0]
+  for (const r of regs) {
+    const js = parseISO(r.date).getDay() // 0 = søndag
+    const idx = (js + 6) % 7
+    sums[idx] += r.minutes
+    counts[idx] += 1
+  }
+  return labels.map((label, i) => ({
+    dag: label,
+    snitt: counts[i] > 0 ? Math.round(sums[i] / counts[i]) : 0,
+  }))
+}
+
+export function dailySeriesWithAverage(regs: { date: string; minutes: number }[]) {
+  if (regs.length === 0) return []
+  const map = dayMap(regs)
+  const start = parseISO(COMPETITION_START)
+  const lastReg = regs.map((r) => r.date).sort().slice(-1)[0]
+  const today = todayISO()
+  const endISO = lastReg > today ? lastReg : today
+  const end = parseISO(endISO > COMPETITION_END ? COMPETITION_END : endISO)
+  if (start > end) return []
+  const days = eachDayOfInterval({ start, end })
+  const values = days.map((d) => map.get(toISO(d)) || 0)
+  return days.map((d, i) => {
+    const from = Math.max(0, i - 6)
+    const slice = values.slice(from, i + 1)
+    const avg = slice.reduce((s, v) => s + v, 0) / slice.length
+    return { date: format(d, 'dd.MM'), minutter: values[i], snitt7: Math.round(avg * 10) / 10 }
+  })
+}
+
+export function weeklySeries(regs: { date: string; minutes: number }[]) {
+  if (regs.length === 0) return []
+  const start = startOfWeek(parseISO(COMPETITION_START), { weekStartsOn: 1 })
+  const todayD = parseISO(todayISO())
+  const end = startOfWeek(todayD > parseISO(COMPETITION_END) ? parseISO(COMPETITION_END) : todayD, { weekStartsOn: 1 })
+  const out: { uke: string; minutter: number }[] = []
+  let cursor = start
+  let guard = 0
+  while (cursor <= end && guard < 80) {
+    const from = toISO(cursor)
+    const to = toISO(endOfWeek(cursor, { weekStartsOn: 1 }))
+    const sum = regs.filter((r) => r.date >= from && r.date <= to).reduce((s, r) => s + r.minutes, 0)
+    out.push({ uke: format(cursor, 'dd.MM'), minutter: sum })
+    cursor = addDays(cursor, 7)
+    guard++
+  }
+  return out
+}
+
+/* ---------- Heatmap ---------- */
+
+export function minutesColor(m: number | undefined): string {
+  if (m === undefined) return '#EDF0F6'
+  if (m <= 0) return '#DCE2EC'
+  if (m < 15) return '#CFE0F5'
+  if (m < 30) return '#9CC3F0'
+  if (m < 45) return '#3FC6A0'
+  if (m < 75) return '#FFB627'
+  return '#FF4B3E'
+}
+
+export const HEAT_LEGEND = [
+  { label: '0', color: '#DCE2EC' },
+  { label: '1–14', color: '#CFE0F5' },
+  { label: '15–29', color: '#9CC3F0' },
+  { label: '30–44', color: '#3FC6A0' },
+  { label: '45–74', color: '#FFB627' },
+  { label: '75+', color: '#FF4B3E' },
+]
+
+/* ---------- Familiens løp (kumulativt) ---------- */
+
+export function cumulativeRace(profiles: Profile[], regs: Registration[]) {
+  const today = todayISO()
+  if (today < COMPETITION_START) return []
+  const endISO = today > COMPETITION_END ? COMPETITION_END : today
+  const days = eachDayOfInterval({ start: parseISO(COMPETITION_START), end: parseISO(endISO) })
+
+  const perUser = new Map<string, Map<string, number>>()
+  for (const p of profiles) perUser.set(p.id, new Map())
+  for (const r of regs) {
+    const m = perUser.get(r.user_id)
+    if (m) m.set(r.date, (m.get(r.date) || 0) + r.minutes)
+  }
+
+  const running = new Map<string, number>()
+  for (const p of profiles) running.set(p.id, 0)
+
+  return days.map((d) => {
+    const iso = toISO(d)
+    const row: Record<string, number | string> = { date: format(d, 'dd.MM') }
+    for (const p of profiles) {
+      const add = perUser.get(p.id)?.get(iso) || 0
+      const next = (running.get(p.id) || 0) + add
+      running.set(p.id, next)
+      row[p.id] = next
+    }
+    return row
+  })
+}
+
+/* ---------- Familie-rekorder ---------- */
+
+export type FamilyHighlights = {
+  bestDay: { name: string; date: string; minutes: number } | null
+  bestWeek: { name: string; start: string; minutes: number } | null
+  bestStreak: { name: string; days: number } | null
+  mostActive: { name: string; days: number } | null
+  total: number
+}
+
+export function familyHighlights(profiles: Profile[], regs: Registration[]): FamilyHighlights {
+  const nameOf = new Map(profiles.map((p) => [p.id, p.full_name || 'Ukjent']))
+  const mine = regs.filter((r) => nameOf.has(r.user_id))
+
+  let bestDay: { name: string; date: string; minutes: number } | null = null
+  for (const r of mine) {
+    if (r.minutes > 0 && (!bestDay || r.minutes > bestDay.minutes)) {
+      bestDay = { name: nameOf.get(r.user_id) || 'Ukjent', date: r.date, minutes: r.minutes }
+    }
+  }
+
+  const byUser = new Map<string, Registration[]>()
+  for (const r of mine) {
+    const list = byUser.get(r.user_id) || []
+    list.push(r)
+    byUser.set(r.user_id, list)
+  }
+
+  let bestWeek: { name: string; start: string; minutes: number } | null = null
+  let bestStreak: { name: string; days: number } | null = null
+  let mostActive: { name: string; days: number } | null = null
+
+  for (const [userId, list] of Array.from(byUser.entries())) {
+    const name = nameOf.get(userId) || 'Ukjent'
+    const rec = computeRecords(list)
+    if (rec.bestWeek && (!bestWeek || rec.bestWeek.minutes > bestWeek.minutes)) {
+      bestWeek = { name, start: rec.bestWeek.start, minutes: rec.bestWeek.minutes }
+    }
+    if (rec.longestStreak > 0 && (!bestStreak || rec.longestStreak > bestStreak.days)) {
+      bestStreak = { name, days: rec.longestStreak }
+    }
+    if (rec.activeDays > 0 && (!mostActive || rec.activeDays > mostActive.days)) {
+      mostActive = { name, days: rec.activeDays }
+    }
+  }
+
+  const total = mine.reduce((s, r) => s + r.minutes, 0)
+  return { bestDay, bestWeek, bestStreak, mostActive, total }
+}
+
+/* ---------- Prestasjoner ---------- */
+
+export type Badge = { id: string; icon: string; title: string; desc: string; earned: boolean }
+
+export function computeBadges(
+  regs: { date: string; minutes: number }[],
+  monthWins: number
+): Badge[] {
+  const rec = computeRecords(regs)
+  const best = rec.bestDay ? rec.bestDay.minutes : 0
+  return [
+    { id: 'first', icon: '👟', title: 'I gang', desc: 'Første økt registrert', earned: rec.activeDays >= 1 },
+    { id: 'streak7', icon: '🔥', title: 'Syv på rad', desc: '7 dager på rad med registrering', earned: rec.longestStreak >= 7 },
+    { id: 'streak21', icon: '⚡', title: 'Tre uker uten pause', desc: '21 dager på rad med registrering', earned: rec.longestStreak >= 21 },
+    { id: 'goal', icon: '🎯', title: 'Ukemål nådd', desc: `${WEEKLY_GOAL} min i én uke`, earned: rec.weeksAtGoal >= 1 },
+    { id: 'goal5', icon: '🏅', title: 'Jevn og god', desc: `${WEEKLY_GOAL} min i fem uker`, earned: rec.weeksAtGoal >= 5 },
+    { id: 'day100', icon: '💯', title: '100-dagen', desc: '100 min eller mer på én dag', earned: best >= 100 },
+    { id: 'k1', icon: '🚀', title: '1 000 minutter', desc: 'Totalt i konkurransen', earned: rec.total >= 1000 },
+    { id: 'k3', icon: '🌋', title: '3 000 minutter', desc: 'Totalt i konkurransen', earned: rec.total >= 3000 },
+    { id: 'month', icon: '🏆', title: 'Månedsvinner', desc: 'Vant en hel måned', earned: monthWins >= 1 },
+  ]
+}
